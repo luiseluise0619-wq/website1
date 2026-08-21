@@ -17,9 +17,12 @@ export interface EditorToolbarProps {
   getCurrentData: () => PuckPageData;
   onReplaceData: (data: PuckPageData) => void;
   onSave: (publish?: boolean) => Promise<void> | void;
+  /** 좌측 패널들을 접어 캔버스를 넓히는 모드 */
+  wide?: boolean;
+  onToggleWide?: () => void;
 }
 
-export function EditorToolbar({ getCurrentData, onReplaceData, onSave }: EditorToolbarProps) {
+export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onToggleWide }: EditorToolbarProps) {
   const page = useEditorStore((s) => s.activePage());
   const editingLocale = useEditorStore((s) => s.editingLocale);
   const setEditingLocale = useEditorStore((s) => s.setEditingLocale);
@@ -92,6 +95,15 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave }: EditorT
           <option value="archived">보관</option>
         </select>
       </div>
+
+      <button
+        type="button"
+        onClick={onToggleWide}
+        title="좌측 패널을 접어 캔버스를 넓게 씁니다"
+        style={{ ...btn, background: wide ? '#3b82f6' : 'transparent', color: wide ? '#fff' : 'inherit' }}
+      >
+        {wide ? '넓게 ON' : '넓게'}
+      </button>
 
       {/* 현재 페이지를 다른 템플릿으로 갈아끼운다 */}
       <select

@@ -46,6 +46,12 @@ export function EditorShell({ initialPages, storage }: { initialPages: PageDocum
   const updatePageMeta = useEditorStore((s) => s.updatePageMeta);
 
   const [saveError, setSaveError] = React.useState<string | null>(null);
+  /* 좌측 페이지 트리는 접을 수 있다.
+     Puck 자체 좌측 패널(블록 목록)과 합치면 화면 폭을 크게 잡아먹어
+     캔버스가 심하게 축소된다(1600px 화면에서 캔버스가 600px 이하). */
+  const [treeOpen, setTreeOpen] = React.useState(true);
+  /* 블록 목록까지 접어 캔버스를 최대로 넓히는 모드 */
+  const [wide, setWide] = React.useState(false);
   const canvasRef = React.useRef<HTMLDivElement>(null);
   /** Puck 캔버스는 iframe 안에서 렌더된다 — 히트맵 측정 대상 */
   const [canvasDoc, setCanvasDoc] = React.useState<Document | null>(null);
@@ -144,10 +150,29 @@ export function EditorShell({ initialPages, storage }: { initialPages: PageDocum
   return (
     <RenderCtx.Provider value={renderCtxValue}>
       <div style={shell}>
-        {/* ============ 좌측: 페이지 트리 ============ */}
-        <aside style={leftPanel}>
-          <div style={panelHeader}>K-SOHO GLOBAL</div>
-          <PageTree />
+        {/* ============ 좌측: 페이지 트리 (접기 가능) ============ */}
+        <aside style={{ ...leftPanel, width: treeOpen ? 250 : 44 }}>
+          <div style={{ ...panelHeader, display: 'flex', alignItems: 'center', gap: 8, justifyContent: treeOpen ? 'space-between' : 'center' }}>
+            {treeOpen ? <span>K-SOHO GLOBAL</span> : null}
+            <button
+              type="button"
+              onClick={() => setTreeOpen((v) => !v)}
+              title={treeOpen ? '페이지 목록 접기 (캔버스를 넓게)' : '페이지 목록 펼치기'}
+              style={{
+                background: 'none',
+                border: 0,
+                color: 'inherit',
+                cursor: 'pointer',
+                fontSize: 14,
+                lineHeight: 1,
+                padding: 2,
+                opacity: 0.7,
+              }}
+            >
+              {treeOpen ? '⟨' : '⟩'}
+            </button>
+          </div>
+          {treeOpen ? <PageTree /> : null}
         </aside>
 
         {/* ============ 중앙: 툴바 + Puck 캔버스 ============ */}
@@ -156,6 +181,15 @@ export function EditorShell({ initialPages, storage }: { initialPages: PageDocum
             getCurrentData={() => liveData.current ?? activePage.content}
             onReplaceData={replaceData}
             onSave={handleSave}
+            wide={wide}
+            onToggleWide={() => {
+              // 넓게 볼 때는 페이지 목록도 함께 접는 편이 자연스럽다
+              setWide((v) => {
+                const next = !v;
+                setTreeOpen(!next);
+                return next;
+              });
+            }}
           />
 
           {/* 저장이 불가능한 배포에서는 편집 전에 미리 알린다 */}
@@ -170,7 +204,11 @@ export function EditorShell({ initialPages, storage }: { initialPages: PageDocum
             </Banner>
           ) : null}
 
-          <div ref={canvasRef} className="ksoho-editor" style={{ flex: 1, position: 'relative', minHeight: 0 }}>
+          <div
+            ref={canvasRef}
+            className={`ksoho-editor${wide ? ' ksoho-wide' : ''}`}
+            style={{ flex: 1, position: 'relative', minHeight: 0 }}
+          >
             <Puck
               key={`${activePage.id}:${dataVersion}`}
               config={puckConfig}

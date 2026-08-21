@@ -43,8 +43,10 @@ html, body {
  * 좁아 쓰기 어려우므로 넓혀 준다. 좌측(블록 목록)은 조금 줄인다.
  * -------------------------------------------------------------------------- */
 .ksoho-editor {
-  --puck-sidebar-right-width: 340px;
-  --puck-sidebar-left-width: 260px;
+  /* Puck 은 --puck-sidebar-*-width 를 --puck-user-sidebar-*-width 에서 파생시킨다.
+     파생된 쪽을 덮어써도 레이아웃 그리드는 바뀌지 않으므로 user 변수를 설정한다. */
+  --puck-user-sidebar-right-width: 340px;
+  --puck-user-sidebar-left-width: 260px;
   /* 캔버스 영역이 자기 높이를 확정해야 Puck 내부 스크롤 계산이 맞는다 */
   height: 100%;
   min-height: 0;
@@ -66,6 +68,17 @@ html, body {
 .ksoho-editor div[class*='PuckLayout-inner_'] {
   height: 100% !important;
   max-height: 100%;
+}
+
+/* '넓게' 모드 — 블록 목록을 접어 캔버스에 폭을 몰아준다.
+   좌우 패널이 화면의 절반을 먹으면 자동 배율이 50% 아래로 떨어져
+   디자인 작업이 사실상 불가능해진다. */
+.ksoho-editor.ksoho-wide {
+  --puck-user-sidebar-left-width: 0px;
+}
+.ksoho-editor.ksoho-wide div[class*='BlocksPlugin_'],
+.ksoho-editor.ksoho-wide div[class*='PuckLayout-nav'] {
+  display: none;
 }
 
 /* 인스펙터 내부 입력이 패널 폭을 넘지 않도록 */
