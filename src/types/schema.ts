@@ -392,6 +392,8 @@ export interface BaseBlockProps {
   /** 레이어 패널 표시 이름 */
   name?: string;
   hidden?: boolean;
+  /** 편집 잠금 — 캔버스에서 드래그/리사이즈가 되지 않는다 */
+  locked?: boolean;
 }
 
 /* ---------------------------------------------------------------------------

@@ -9,6 +9,7 @@ import { useEditorStore } from '@/store/editorStore';
 import { PageTree } from './PageTree';
 import { EditorToolbar } from './EditorToolbar';
 import { RightPanel } from './RightPanel';
+import { FreeTransformLayer } from './FreeTransformLayer';
 import { HeatmapOverlay } from '@/components/analytics/HeatmapOverlay';
 import type { Data } from '@puckeditor/core';
 import type { PageDocument, PuckPageData } from '@/types/schema';
@@ -180,6 +181,14 @@ export function EditorShell({ initialPages, storage }: { initialPages: PageDocum
               /* 우측 사이드바 전체를 우리 패널로 교체한다.
                  children 이 곧 선택 요소의 스타일 인스펙터다. */
               overrides={{
+                /* 캔버스 위에 자유 배치 조작 레이어를 얹는다.
+                   preview 오버라이드 안이어야 usePuck 컨텍스트에 접근할 수 있다. */
+                preview: ({ children }) => (
+                  <>
+                    {children}
+                    <FreeTransformLayer containerRef={canvasRef} />
+                  </>
+                ),
                 fields: ({ children, isLoading, itemSelector }) => (
                   <RightPanel
                     isLoading={isLoading}

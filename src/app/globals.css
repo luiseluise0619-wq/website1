@@ -45,6 +45,27 @@ html, body {
 .ksoho-editor {
   --puck-sidebar-right-width: 340px;
   --puck-sidebar-left-width: 260px;
+  /* 캔버스 영역이 자기 높이를 확정해야 Puck 내부 스크롤 계산이 맞는다 */
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Puck 루트는 기본적으로 100vh 를 가정한다. 우리는 상단 툴바만큼 낮은
+   컨테이너 안에 넣으므로, 그대로 두면 캔버스가 뷰포트보다 길어져
+   아래쪽이 잘리고 스크롤로도 닿지 않는다. 부모에 정확히 맞춘다. */
+.ksoho-editor > .Puck,
+.ksoho-editor > div[class*='Puck_'] {
+  height: 100% !important;
+  max-height: 100%;
+}
+
+/* Puck 내부 레이아웃도 100vh 기준이라 같은 이유로 부모에 맞춘다.
+   여기를 놓치면 캔버스 하단이 툴바 높이만큼 잘려 스크롤로도 닿지 않는다. */
+.ksoho-editor div[class*='PuckLayout_'],
+.ksoho-editor div[class*='PuckLayout-inner_'] {
+  height: 100% !important;
+  max-height: 100%;
 }
 
 /* 인스펙터 내부 입력이 패널 폭을 넘지 않도록 */

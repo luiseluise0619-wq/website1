@@ -86,6 +86,7 @@ export function BlockShell({
   const elementId = resolveElementId(props);
   const Tag = as as React.ElementType;
   const css = blockCSS(props, { free: isFree });
+
   const stateRules = React.useMemo(
     () => statesToCSSText(props.states, styleForBreakpoint(props), elementId),
     [props.states, props.style, props.responsive, elementId],
@@ -107,6 +108,10 @@ export function BlockShell({
         data-conversion-goal={props.conversionGoal || undefined}
         data-no-track={props.trackingDisabled ? 'true' : undefined}
         data-hidden={props.hidden ? 'true' : undefined}
+        /* 캔버스 밖 조작 레이어가 이 요소를 정확히 찾기 위한 Puck 인스턴스 id.
+           data-element-id 는 관리자가 바꿀 수 있는 추적용이라 신뢰할 수 없다. */
+        data-puck-id={props.id}
+        data-free={isFree ? 'true' : undefined}
       >
         {children}
       </Tag>
