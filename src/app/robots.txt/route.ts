@@ -10,8 +10,15 @@ import { siteUrl } from '@/lib/siteUrl';
 export const dynamic = 'force-dynamic';
 
 export function GET(): Response {
-  /* 프리뷰 배포가 색인되면 운영 도메인과 중복 콘텐츠가 된다 — 운영에서만 허용 */
-  const isProduction = process.env.VERCEL_ENV === 'production' || !process.env.VERCEL;
+  /* 프리뷰 배포가 색인되면 운영 도메인과 중복 콘텐츠가 된다 — 운영에서만 허용.
+     호스팅마다 프리뷰를 알리는 변수가 다르므로 셋 다 확인한다.
+       Vercel : VERCEL_ENV
+       Netlify: CONTEXT (production | deploy-preview | branch-deploy) */
+  const isPreview =
+    (process.env.VERCEL && process.env.VERCEL_ENV !== 'production') ||
+    (process.env.NETLIFY && process.env.CONTEXT !== 'production') ||
+    process.env.NEXT_PUBLIC_IS_PREVIEW === '1';
+  const isProduction = !isPreview;
 
   const body = isProduction
     ? [

@@ -1,0 +1,48 @@
+# =============================================================================
+# Netlify 배포 설정
+# -----------------------------------------------------------------------------
+# Next.js Runtime v5 가 App Router 라우트를 Netlify Functions 로 변환한다.
+# Functions 는 Node 런타임이라 pg(Postgres TCP)·node:crypto 가 그대로 동작한다.
+# =============================================================================
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+  # 빌드 로그를 조용하게
+  NEXT_TELEMETRY_DISABLED = "1"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# ---- 보안 헤더 (vercel.json 과 동일한 정책) ----------------------------------
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Frame-Options = "SAMEORIGIN"
+
+[[headers]]
+  for = "/admin/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+    Cache-Control = "no-store"
+
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Cache-Control = "no-store"
+
+# 프리뷰(Deploy Preview / branch) 배포는 색인되면 안 된다.
+# robots.txt 는 런타임에 VERCEL_ENV 를 보므로, Netlify 에서는 헤더로 막는다.
+[context.deploy-preview]
+  [context.deploy-preview.environment]
+    NEXT_PUBLIC_IS_PREVIEW = "1"
+
+[context.branch-deploy]
+  [context.branch-deploy.environment]
+    NEXT_PUBLIC_IS_PREVIEW = "1"

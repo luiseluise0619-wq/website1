@@ -179,6 +179,29 @@ npm run test:watch
 | `test/translate.test.ts` | 번역 대상 수집, 검수본 보존, 중첩 zone 왕복 |
 | `test/analytics.test.ts` | 클릭 점유율·CTR, 스크롤 퍼널, 섹션 이탈률, 바운스 |
 
+## Netlify 배포
+
+`netlify.toml` 이 포함되어 있어 저장소만 연결하면 됩니다.
+
+1. [app.netlify.com](https://app.netlify.com) → **Add new site → Import an existing project** → 저장소 선택
+2. 빌드 설정은 `netlify.toml` 이 정의하므로 그대로 두기
+3. **Site configuration → Environment variables** 에 추가:
+
+| Key | 값 |
+|---|---|
+| `POSTGRES_URL` | Neon pooled 연결 문자열 |
+| `ADMIN_PASSWORD` | 관리자 비밀번호 |
+| `ADMIN_SESSION_SECRET` | `openssl rand -base64 32` |
+| `SITE_URL` | 커스텀 도메인 사용 시에만 (미설정 시 Netlify 도메인 자동 인식) |
+
+4. Deploy → `https://<사이트>.netlify.app/api/health` 확인
+
+Netlify Functions 는 Node 런타임이라 `pg`(Postgres TCP)와 `node:crypto` 가 그대로 동작하며,
+Deploy Preview 와 branch 배포는 `robots.txt` 가 자동으로 색인을 막습니다.
+
+**무료 한도**: 월 300 빌드분, 함수 호출 월 125,000회. (Vercel 의 "하루 100회 배포" 같은
+일일 제한은 없습니다.)
+
 ## 다른 호스팅 (Docker / Fly.io / Railway)
 
 Node 런타임이면 코드 수정 없이 그대로 돕니다. `Dockerfile` 과 `fly.toml` 이 포함되어 있습니다.
