@@ -8,9 +8,8 @@ import { RenderCtx } from '@/puck/blocks/shared';
 import { useEditorStore } from '@/store/editorStore';
 import { PageTree } from './PageTree';
 import { EditorToolbar } from './EditorToolbar';
-import { SeoPanel } from './SeoPanel';
+import { RightPanel } from './RightPanel';
 import { HeatmapOverlay } from '@/components/analytics/HeatmapOverlay';
-import { DropOffPanel } from '@/components/analytics/DropOffPanel';
 import type { Data } from '@puckeditor/core';
 import type { PageDocument, PuckPageData } from '@/types/schema';
 
@@ -43,7 +42,6 @@ export function EditorShell({ initialPages, storage }: { initialPages: PageDocum
   const markSaved = useEditorStore((s) => s.markSaved);
   const updatePageMeta = useEditorStore((s) => s.updatePageMeta);
 
-  const [rightTab, setRightTab] = React.useState<'inspector' | 'seo' | 'analytics'>('inspector');
   const [saveError, setSaveError] = React.useState<string | null>(null);
   const canvasRef = React.useRef<HTMLDivElement>(null);
   /** Puck 캔버스는 iframe 안에서 렌더된다 — 히트맵 측정 대상 */
@@ -166,7 +164,7 @@ export function EditorShell({ initialPages, storage }: { initialPages: PageDocum
             </Banner>
           ) : null}
 
-          <div ref={canvasRef} style={{ flex: 1, position: 'relative', minHeight: 0 }}>
+          <div ref={canvasRef} className="ksoho-editor" style={{ flex: 1, position: 'relative', minHeight: 0 }}>
             <Puck
               key={`${activePage.id}:${dataVersion}`}
               config={puckConfig}
@@ -179,6 +177,19 @@ export function EditorShell({ initialPages, storage }: { initialPages: PageDocum
               /* Puck 의 기본 헤더는 우리 툴바로 대체한다 */
               headerTitle={activePage.title}
               headerPath={activePage.path}
+              /* 우측 사이드바 전체를 우리 패널로 교체한다.
+                 children 이 곧 선택 요소의 스타일 인스펙터다. */
+              overrides={{
+                fields: ({ children, isLoading, itemSelector }) => (
+                  <RightPanel
+                    isLoading={isLoading}
+                    hasSelection={Boolean(itemSelector)}
+                    analytics={analytics}
+                  >
+                    {children}
+                  </RightPanel>
+                ),
+              }}
             />
 
             {/* 히트맵은 Puck 캔버스 위에 겹치는 별도 레이어 */}
@@ -188,36 +199,6 @@ export function EditorShell({ initialPages, storage }: { initialPages: PageDocum
           </div>
         </div>
 
-        {/* ============ 우측: SEO / 분석 보조 패널 ============ */}
-        <aside style={rightPanel}>
-          <div style={{ display: 'flex', borderBottom: '1px solid var(--ks-edge)' }}>
-            {(['inspector', 'seo', 'analytics'] as const).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setRightTab(tab)}
-                style={{
-                  flex: 1,
-                  padding: '10px 6px',
-                  border: 0,
-                  background: rightTab === tab ? 'var(--ks-panel2)' : 'transparent',
-                  color: 'inherit',
-                  fontSize: 11,
-                  cursor: 'pointer',
-                  fontWeight: rightTab === tab ? 700 : 400,
-                }}
-              >
-                {tab === 'inspector' ? '가이드' : tab === 'seo' ? 'SEO' : '분석'}
-              </button>
-            ))}
-          </div>
-
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            {rightTab === 'seo' ? <SeoPanel /> : null}
-            {rightTab === 'analytics' ? <DropOffPanel summary={analytics} /> : null}
-            {rightTab === 'inspector' ? <InspectorGuide /> : null}
-          </div>
-        </aside>
       </div>
     </RenderCtx.Provider>
   );
@@ -261,23 +242,6 @@ function Banner({
   );
 }
 
-/** Puck 자체 인스펙터가 캔버스 오른쪽에 붙으므로, 이 탭은 사용법 안내를 담당한다 */
-function InspectorGuide() {
-  return (
-    <div style={{ padding: '14px 16px', fontSize: 12, lineHeight: 1.9, color: '#a8b1c2' }}>
-      <h4 style={{ margin: '0 0 8px', fontSize: 12, color: '#e6ebf5' }}>편집 방법</h4>
-      <ul style={{ paddingLeft: 16, margin: 0 }}>
-        <li>왼쪽 블록 목록에서 캔버스로 <b>드래그</b>해 요소를 추가합니다.</li>
-        <li>요소를 클릭하면 <b>스타일 인스펙터</b>가 열립니다 (색상·폰트·여백·테두리).</li>
-        <li><b>자유 캔버스</b> 블록 안에서는 X/Y/Z 좌표로 자유 배치됩니다.</li>
-        <li>텍스트 필드는 언어별로 저장됩니다. 상단에서 편집 언어를 바꾸세요.</li>
-        <li><b>추적 ID</b> 를 지정하면 요소를 옮겨도 히트맵 기록이 이어집니다.</li>
-        <li><b>전환 목표명</b> 을 넣은 요소의 클릭은 전환으로 집계됩니다.</li>
-      </ul>
-    </div>
-  );
-}
-
 const shell: React.CSSProperties = {
   display: 'flex',
   height: '100vh',
@@ -290,15 +254,6 @@ const leftPanel: React.CSSProperties = {
   width: 250,
   flexShrink: 0,
   borderRight: '1px solid var(--ks-edge)',
-  background: 'var(--ks-panel)',
-  display: 'flex',
-  flexDirection: 'column',
-};
-
-const rightPanel: React.CSSProperties = {
-  width: 280,
-  flexShrink: 0,
-  borderLeft: '1px solid var(--ks-edge)',
   background: 'var(--ks-panel)',
   display: 'flex',
   flexDirection: 'column',

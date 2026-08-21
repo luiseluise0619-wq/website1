@@ -25,3 +25,20 @@ html, body {
 
 /* 버튼 블록은 링크 오버레이를 위해 relative 가 보장돼야 한다 */
 [data-element-type='Button'] { position: relative; }
+
+/* -----------------------------------------------------------------------------
+ * 에디터 레이아웃
+ * 우측 사이드바가 곧 스타일 인스펙터다 — 기본 폭으로는 색상·수치 입력이
+ * 좁아 쓰기 어려우므로 넓혀 준다. 좌측(블록 목록)은 조금 줄인다.
+ * -------------------------------------------------------------------------- */
+.ksoho-editor {
+  --puck-sidebar-right-width: 340px;
+  --puck-sidebar-left-width: 260px;
+}
+
+/* 인스펙터 내부 입력이 패널 폭을 넘지 않도록 */
+.ksoho-editor input,
+.ksoho-editor select,
+.ksoho-editor textarea {
+  max-width: 100%;
+}
