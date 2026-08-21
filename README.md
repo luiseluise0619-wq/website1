@@ -179,6 +179,33 @@ npm run test:watch
 | `test/translate.test.ts` | 번역 대상 수집, 검수본 보존, 중첩 zone 왕복 |
 | `test/analytics.test.ts` | 클릭 점유율·CTR, 스크롤 퍼널, 섹션 이탈률, 바운스 |
 
+## 다른 호스팅 (Docker / Fly.io / Railway)
+
+Node 런타임이면 코드 수정 없이 그대로 돕니다. `Dockerfile` 과 `fly.toml` 이 포함되어 있습니다.
+
+```bash
+# Fly.io
+fly launch --no-deploy
+fly secrets set POSTGRES_URL="..." ADMIN_PASSWORD="..." ADMIN_SESSION_SECRET="..."
+fly deploy
+
+# 아무 Docker 호스트
+docker build -t k-soho-global .
+docker run -p 3000:3000 -e POSTGRES_URL="..." -e ADMIN_PASSWORD="..." k-soho-global
+```
+
+`DOCKER_BUILD=1` 일 때만 Next 의 standalone 출력을 켜므로 Vercel 배포와 간섭하지 않습니다.
+
+## 보안 주석
+
+- **이미지 최적화기 비활성** — 이미지 블록은 관리자가 임의 URL 을 넣을 수 있어야 해서
+  `next/image` 대신 `<img>` 를 쓴다. 최적화기를 열어두면(`remotePatterns: '**'`)
+  외부에서 임의 이미지를 우리 도메인으로 프록시시켜 대역폭을 소모시킬 수 있으므로
+  `images.unoptimized` 로 꺼두었다. `npm audit` 이 Next 버전 범위로 이 항목을
+  계속 보고하지만, 해당 코드 경로 자체가 비활성이다.
+- **Next 15/16 업그레이드**는 `cookies()`·`headers()`·`params` 가 비동기로 바뀌는
+  파괴적 변경이라 별도 작업으로 남겨두었다.
+
 ## Vercel 배포
 
 ### 1. 저장소 연결

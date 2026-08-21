@@ -16,6 +16,14 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  /* 로컬 개발(비밀번호 미설정)에서는 인증이 면제된다.
+     이 조건을 빠뜨리면 로그인 페이지는 "면제니까 에디터로", 미들웨어는
+     "쿠키 없으니 로그인으로" 를 반복해 무한 리다이렉트가 된다.
+     lib/server/auth.ts 의 authDisabledForDev() 와 같은 판정을 유지해야 한다. */
+  const authConfigured = Boolean(process.env.ADMIN_PASSWORD);
+  const isProduction = process.env.NODE_ENV === 'production';
+  if (!authConfigured && !isProduction) return NextResponse.next();
+
   const hasSession = Boolean(request.cookies.get(SESSION_COOKIE)?.value);
   if (hasSession) return NextResponse.next();
 

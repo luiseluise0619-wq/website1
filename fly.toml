@@ -1,0 +1,38 @@
+# =============================================================================
+# Fly.io 배포 설정
+#   fly launch --no-deploy      # 앱 생성 (이 파일을 그대로 사용)
+#   fly secrets set POSTGRES_URL="..." ADMIN_PASSWORD="..." ADMIN_SESSION_SECRET="..."
+#   fly deploy
+# =============================================================================
+
+app = "k-soho-global"
+# 한국 사용자 기준 가장 가까운 리전은 도쿄(nrt). 싱가포르는 sin.
+primary_region = "nrt"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "3000"
+  # 도메인이 정해지면 여기 또는 secrets 로 설정한다 (런타임에 읽는다)
+  # SITE_URL = "https://k-soho-global.fly.dev"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  # 트래픽이 없을 때 머신을 정지시켜 비용을 줄인다.
+  # 첫 요청에 수백 ms 의 콜드스타트가 붙는 대신 유휴 비용이 사라진다.
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "20s"
+    method = "GET"
+    path = "/api/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
