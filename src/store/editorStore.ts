@@ -45,6 +45,13 @@ export interface EditorState {
   dirty: boolean;
   saving: boolean;
   lastSavedAt: string | null;
+
+  /**
+   * 자유 배치 캔버스에서 선택된 요소의 Puck 인스턴스 id.
+   * Puck 은 중첩 DropZone 안의 항목을 선택 대상으로 받아주지 않으므로,
+   * 조작 레이어(FreeTransformLayer)와 인스펙터(RightPanel)가 이 값을 공유한다.
+   */
+  pickedElementId: string | null;
 }
 
 export interface EditorActions {
@@ -75,6 +82,7 @@ export interface EditorActions {
 
   setSaving: (v: boolean) => void;
   markSaved: () => void;
+  setPickedElement: (id: string | null) => void;
 
   activePage: () => PageDocument | null;
 }
@@ -113,6 +121,7 @@ export const useEditorStore = create<EditorStore>((set, get) => {
     dirty: false,
     saving: false,
     lastSavedAt: null,
+    pickedElementId: null,
 
     loadPages: (pages) => set({ pages, activePageId: pages[0]?.id ?? null, dirty: false }),
 
@@ -172,6 +181,8 @@ export const useEditorStore = create<EditorStore>((set, get) => {
     setAnalytics: (analytics) => set({ analytics, analyticsLoading: false, analyticsError: null }),
     setAnalyticsLoading: (analyticsLoading) => set({ analyticsLoading }),
     setAnalyticsError: (analyticsError) => set({ analyticsError, analyticsLoading: false }),
+
+    setPickedElement: (pickedElementId) => set({ pickedElementId }),
 
     setSaving: (saving) => set({ saving }),
     markSaved: () => set({ dirty: false, saving: false, lastSavedAt: new Date().toISOString() }),

@@ -1,8 +1,12 @@
 'use client';
 
 import React from 'react';
+import { usePuck } from '@puckeditor/core';
 import { SeoPanel } from './SeoPanel';
+import { FieldRenderer } from './FieldRenderer';
 import { DropOffPanel } from '@/components/analytics/DropOffPanel';
+import { useEditorStore } from '@/store/editorStore';
+import { puckConfig } from '@/puck/config';
 import type { PageAnalyticsSummary } from '@/types/analytics';
 
 /* =============================================================================
@@ -57,11 +61,7 @@ export function RightPanel({ children, isLoading, hasSelection, analytics }: Rig
         {/* 스타일 탭은 항상 마운트를 유지한다 — 탭을 옮겨도 편집 중이던
             필드의 포커스/스크롤 위치가 날아가지 않게 하기 위함 */}
         <div style={{ display: tab === 'style' ? 'block' : 'none' }}>
-          {hasSelection ? (
-            children
-          ) : (
-            <EmptyState isLoading={isLoading} />
-          )}
+          <FreeElementInspector fallback={hasSelection ? children : <EmptyState isLoading={isLoading} />} />
         </div>
 
         {tab === 'seo' ? <SeoPanel /> : null}
@@ -70,6 +70,67 @@ export function RightPanel({ children, isLoading, hasSelection, analytics }: Rig
     </div>
   );
 }
+
+/**
+ * 자유 배치 요소가 선택돼 있으면 그 요소의 필드를 직접 그린다.
+ * Puck 인스펙터는 중첩 항목을 표시하지 못해 부모 캔버스를 계속 보여주기 때문이다.
+ */
+function FreeElementInspector({ fallback }: { fallback: React.ReactNode }) {
+  const pickedId = useEditorStore((s) => s.pickedElementId);
+  const { getItemById, getSelectorForId, dispatch, appState } = usePuck();
+
+  const item = React.useMemo(
+    () => (pickedId ? getItemById(pickedId) : undefined),
+    // appState 를 의존성에 두어야 값이 바뀔 때 다시 읽는다
+    [pickedId, getItemById, appState.data],
+  );
+
+  const update = React.useCallback(
+    (key: string, value: unknown) => {
+      if (!pickedId || !item) return;
+      const selector = getSelectorForId(pickedId);
+      if (!selector) return;
+      dispatch({
+        type: 'replace',
+        destinationIndex: selector.index,
+        destinationZone: selector.zone,
+        data: { ...item, props: { ...item.props, [key]: value } },
+      });
+    },
+    [pickedId, item, getSelectorForId, dispatch],
+  );
+
+  if (!pickedId || !item) return <>{fallback}</>;
+
+  const config = puckConfig.components[item.type as keyof typeof puckConfig.components];
+  if (!config?.fields) return <>{fallback}</>;
+
+  return (
+    <div>
+      <div style={selectedHeader}>
+        <span style={{ fontWeight: 700 }}>{String(item.type)}</span>
+        <span style={{ opacity: 0.6, fontFamily: 'monospace', fontSize: 10 }}>{pickedId}</span>
+      </div>
+      <FieldRenderer
+        fields={config.fields as never}
+        values={item.props as Record<string, unknown>}
+        onChange={update}
+      />
+    </div>
+  );
+}
+
+const selectedHeader: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 8,
+  padding: '9px 14px',
+  fontSize: 12,
+  borderBottom: '1px solid var(--puck-color-grey-09, #e5e7eb)',
+  background: 'var(--puck-color-azure-11, #eff6ff)',
+  color: 'var(--puck-color-azure-04, #1d4ed8)',
+};
 
 function EmptyState({ isLoading }: { isLoading?: boolean }) {
   if (isLoading) return <div style={hint}>불러오는 중…</div>;

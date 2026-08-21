@@ -3,6 +3,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { usePuck } from '@puckeditor/core';
+import { useEditorStore } from '@/store/editorStore';
 import type { FreePlacement } from '@/types/schema';
 
 /* =============================================================================
@@ -83,7 +84,9 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
      Puck 의 setUi 는 중첩 DropZone 안의 항목을 선택 대상으로 받아주지 않는다
      (getSelectorForId 는 selector 를 돌려주지만 itemSelector 로 넣으면 null 로
      정규화된다). 자유 배치 요소의 선택은 이 레이어가 직접 관리한다. */
-  const [pickedId, setPickedId] = React.useState<string | null>(null);
+  /* 인스펙터가 같은 선택을 봐야 하므로 스토어에 둔다 */
+  const pickedId = useEditorStore((s) => s.pickedElementId);
+  const setPickedId = useEditorStore((s) => s.setPickedElement);
   const [box, setBox] = React.useState<Box | null>(null);
   const [regions, setRegions] = React.useState<CanvasRegion[]>([]);
   const [mode, setMode] = React.useState<'idle' | 'move' | Handle>('idle');
@@ -337,12 +340,38 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
     });
   };
 
-  /* 방향키로 미세 조정 — 마우스로는 1px 단위가 어렵다 */
+  /* 키보드 조작 — 방향키 미세 이동, 삭제, 복제, 선택 해제.
+     입력란에 포커스가 있을 때는 가로채지 않는다. */
   React.useEffect(() => {
     if (!selected) return;
+
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
-      if (target.closest('input, textarea, select, [contenteditable="true"]')) return;
+      if (target.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+
+      if (e.key === 'Escape') {
+        setPickedId(null);
+        return;
+      }
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        const selector = getSelectorForId(selected.id);
+        if (!selector) return;
+        e.preventDefault();
+        dispatch({ type: 'remove', index: selector.index, zone: selector.zone });
+        setPickedId(null);
+        return;
+      }
+
+      /* Ctrl/Cmd+D 복제 — 브라우저 북마크 단축키를 대신 차지한다 */
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd') {
+        const selector = getSelectorForId(selected.id);
+        if (!selector) return;
+        e.preventDefault();
+        dispatch({ type: 'duplicate', sourceIndex: selector.index, sourceZone: selector.zone });
+        return;
+      }
+
       const step = e.shiftKey ? 10 : 1;
       const map: Record<string, [number, number]> = {
         ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step],
@@ -355,9 +384,10 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
         y: Number(selected.placement?.y ?? 0) + delta[1],
       });
     };
+
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selected, commit]);
+  }, [selected, commit, dispatch, getSelectorForId, setPickedId]);
 
   /* 좌표를 containerRef 기준으로 계산하므로, 실제 DOM 도 그 컨테이너 안에 있어야
      한다. Puck 내부 어딘가에 렌더되면 offsetParent 가 달라져 위치가 어긋난다. */
@@ -372,7 +402,11 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
           key={i}
           onPointerDown={(e) => {
             const id = selectAtPoint(e.clientX, e.clientY);
-            if (!id) return; // 빈 곳 — Puck 기본 동작(캔버스 선택)에 맡긴다
+            if (!id) {
+              // 빈 곳 — 선택을 풀고 Puck 기본 동작(캔버스 선택)에 맡긴다
+              setPickedId(null);
+              return;
+            }
             /* Puck 은 컴포넌트 밖 클릭을 선택 해제로 해석한다. 우리 오버레이는
                캔버스 밖이라 그대로 두면 방금 지정한 선택이 즉시 풀린다. */
             e.preventDefault();
@@ -409,6 +443,9 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
       >
         <span style={badge}>
           {Math.round(Number(selected.placement?.x ?? 0))}, {Math.round(Number(selected.placement?.y ?? 0))}
+          <span style={{ opacity: 0.75, fontWeight: 500, marginLeft: 6 }}>
+            방향키 이동 · Del 삭제 · Esc 해제
+          </span>
         </span>
 
         {HANDLES.map((h) => (
