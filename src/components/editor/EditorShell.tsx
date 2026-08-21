@@ -122,6 +122,16 @@ export function EditorShell({ initialPages, storage }: { initialPages: PageDocum
     setDataVersion((v) => v + 1);
   };
 
+  /* Puck 에 넘기는 data 는 "초기값"이다. onChange 결과를 그대로 되먹이면
+     매 편집마다 새 객체가 들어가 Puck 이 상태를 다시 세우고, 그 과정에서
+     캔버스 스크롤이 맨 위로 튀고 선택이 풀린다.
+     그래서 페이지가 바뀌거나 템플릿을 갈아끼울 때만 새 값을 준다. */
+  const puckData = React.useMemo(
+    () => activePage?.content as unknown as Data,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activePage?.id, dataVersion],
+  );
+
   const renderCtxValue = React.useMemo(
     () => ({ locale: editingLocale, siteDefault: activePage?.sourceLocale ?? 'ko', isEditing: true }),
     [editingLocale, activePage?.sourceLocale],
@@ -164,7 +174,7 @@ export function EditorShell({ initialPages, storage }: { initialPages: PageDocum
             <Puck
               key={`${activePage.id}:${dataVersion}`}
               config={puckConfig}
-              data={activePage.content as unknown as Data}
+              data={puckData}
               onChange={(data) => {
                 liveData.current = data as unknown as PuckPageData;
                 commitContent(activePage.id, data as unknown as PuckPageData);

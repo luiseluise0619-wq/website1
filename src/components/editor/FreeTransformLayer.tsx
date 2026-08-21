@@ -4,6 +4,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { usePuck } from '@puckeditor/core';
 import { useEditorStore } from '@/store/editorStore';
+import { puckConfig } from '@/puck/config';
 import type { FreePlacement } from '@/types/schema';
 
 /* =============================================================================
@@ -394,8 +395,80 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
   const host = containerRef.current;
   if (!host) return null;
 
+  /**
+   * 섹션 추가.
+   * 블록 목록에서 끌어오는 방법만 있으면 "한 칸 더 만들기"가 매번 드래그라
+   * 번거롭다. 캔버스 하단 버튼으로 섹션과 그 안의 자유 캔버스를 한 번에 넣는다.
+   */
+  const addSection = () => {
+    const suffix = Math.random().toString(36).slice(2, 8);
+    const sectionId = `section-${suffix}`;
+    const canvasId = `canvas-${suffix}`;
+
+    /* insert 액션으로는 중첩 존에 넣을 수 없다 — 런타임에 등록되지 않은 존을
+       대상으로 하면 조용히 무시된다(setUi 로 중첩 항목을 선택하지 못하는 것과
+       같은 제약). 그래서 문서를 통째로 다시 써서 섹션과 그 안의 자유 캔버스를
+       한 번에 만든다. 시드 데이터가 만들어지는 방식과 동일하다. */
+    const sectionDefaults = puckConfig.components.Section?.defaultProps ?? {};
+    const canvasDefaults = puckConfig.components.FreeCanvas?.defaultProps ?? {};
+
+    dispatch({
+      type: 'setData',
+      data: (prev) => ({
+        ...prev,
+        content: [
+          ...(prev.content ?? []),
+          { type: 'Section', props: { ...sectionDefaults, id: sectionId, name: '새 섹션' } },
+        ],
+        zones: {
+          ...(prev.zones ?? {}),
+          [`${sectionId}:content`]: [
+            { type: 'FreeCanvas', props: { ...canvasDefaults, id: canvasId, name: '자유 캔버스' } },
+          ],
+          [`${canvasId}:layers`]: [],
+        },
+      }),
+    });
+
+    /* 새 섹션이 그려진 뒤 그쪽으로 시선을 옮긴다 */
+    let attempts = 0;
+    const reveal = () => {
+      const el = document
+        .querySelector<HTMLIFrameElement>('iframe')
+        ?.contentDocument?.querySelector(`[data-puck-id="${sectionId}"]`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      else if (attempts++ < 20) setTimeout(reveal, 100);
+    };
+    setTimeout(reveal, 80);
+  };
+
   return createPortal(
     <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 2000 }}>
+      {/* 캔버스 어디서든 닿는 섹션 추가 버튼 */}
+      <button
+        type="button"
+        onClick={addSection}
+        title="페이지 맨 아래에 섹션을 추가합니다"
+        style={{
+          position: 'absolute',
+          bottom: 16,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          padding: '9px 16px',
+          borderRadius: 999,
+          border: '1px solid rgba(255,255,255,.18)',
+          background: 'rgba(13,15,20,.9)',
+          color: '#e6ebf5',
+          fontSize: 12,
+          fontWeight: 600,
+          cursor: 'pointer',
+          pointerEvents: 'auto',
+          boxShadow: '0 6px 20px rgba(0,0,0,.35)',
+          backdropFilter: 'blur(6px)',
+        }}
+      >
+        ＋ 섹션 추가
+      </button>
       {/* 자유 캔버스 영역: 클릭을 받아 우리가 선택을 결정한다 */}
       {regions.map((r, i) => (
         <div
