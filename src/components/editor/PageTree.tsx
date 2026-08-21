@@ -3,7 +3,7 @@
 import React from 'react';
 import { useEditorStore } from '@/store/editorStore';
 import { NAVIGATION } from '@/data/navigation';
-import { normalizePath, slugify } from '@/lib/id';
+import { NewPageDialog, type NewPageResult } from './NewPageDialog';
 import type { NavNode, PageDocument } from '@/types/schema';
 
 /* =============================================================================
@@ -18,24 +18,14 @@ export function PageTree() {
   const createPage = useEditorStore((s) => s.createPage);
   const deletePage = useEditorStore((s) => s.deletePage);
   const [filter, setFilter] = React.useState('');
+  /** null = 닫힘, undefined preset = 빈 페이지에서 시작 */
+  const [dialog, setDialog] = React.useState<{ preset: NavNode | null } | null>(null);
 
   const byPath = React.useMemo(() => new Map(pages.map((p) => [p.path, p])), [pages]);
 
-  const handleCreateFromNav = (node: NavNode) => {
-    if (!node.path) return;
-    createPage({ path: node.path, title: node.label, navId: node.id });
-  };
-
-  const handleCreateCustom = () => {
-    const input = window.prompt('새 페이지 경로를 입력하세요 (예: /global/thailand)');
-    if (!input) return;
-    const path = normalizePath(slugify(input));
-    if (byPath.has(path)) {
-      window.alert('이미 존재하는 경로입니다.');
-      return;
-    }
-    const title = window.prompt('페이지 제목', path.split('/').pop() ?? 'New Page') ?? 'New Page';
-    createPage({ path, title });
+  const handleCreate = (result: NewPageResult) => {
+    setDialog(null);
+    createPage(result);
   };
 
   const matches = (text: string) => !filter || text.toLowerCase().includes(filter.toLowerCase());
@@ -62,7 +52,7 @@ export function PageTree() {
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 6px' }}>
         {NAVIGATION.map((node) => (
           <div key={node.id} style={{ marginBottom: 6 }}>
-            <NavRow node={node} page={byPath.get(node.path ?? '')} depth={0} onCreate={handleCreateFromNav} activePageId={activePageId} onSelect={setActivePage} onDelete={deletePage} visible={matches(node.label)} />
+            <NavRow node={node} page={byPath.get(node.path ?? '')} depth={0} onCreate={(n) => setDialog({ preset: n })} activePageId={activePageId} onSelect={setActivePage} onDelete={deletePage} visible={matches(node.label)} />
             {node.children?.map((child) =>
               matches(child.label) || matches(node.label) ? (
                 <NavRow
@@ -70,7 +60,7 @@ export function PageTree() {
                   node={child}
                   page={byPath.get(child.path ?? '')}
                   depth={1}
-                  onCreate={handleCreateFromNav}
+                  onCreate={(node) => setDialog({ preset: node })}
                   activePageId={activePageId}
                   onSelect={setActivePage}
                   onDelete={deletePage}
@@ -85,9 +75,18 @@ export function PageTree() {
         <CustomPages pages={pages} activePageId={activePageId} onSelect={setActivePage} onDelete={deletePage} />
       </div>
 
-      <button type="button" onClick={handleCreateCustom} style={createBtn}>
+      <button type="button" onClick={() => setDialog({ preset: null })} style={createBtn}>
         ＋ 새 페이지
       </button>
+
+      {dialog ? (
+        <NewPageDialog
+          preset={dialog.preset}
+          existingPaths={pages.map((p) => p.path)}
+          onCancel={() => setDialog(null)}
+          onCreate={handleCreate}
+        />
+      ) : null}
     </div>
   );
 }

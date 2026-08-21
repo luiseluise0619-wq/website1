@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import { newPageId, normalizePath } from '@/lib/id';
 import { setLocalized, DEFAULT_LOCALE } from '@/lib/i18n';
+import { getTemplate } from '@/data/templates';
 import type {
   LocaleCode,
   PageDocument,
@@ -57,7 +58,9 @@ export interface EditorState {
 export interface EditorActions {
   loadPages: (pages: PageDocument[]) => void;
   setActivePage: (pageId: string) => void;
-  createPage: (input: { path: string; title: string; navId?: string }) => string;
+  createPage: (input: { path: string; title: string; navId?: string; templateId?: string }) => string;
+  /** 현재 페이지 내용을 템플릿으로 교체한다 */
+  applyTemplate: (pageId: string, templateId: string) => void;
   updatePageMeta: (
     pageId: string,
     patch: Partial<Pick<PageDocument, 'title' | 'path' | 'status' | 'navId' | 'enabledLocales' | 'canvasWidth'>>,
@@ -127,7 +130,7 @@ export const useEditorStore = create<EditorStore>((set, get) => {
 
     setActivePage: (activePageId) => set({ activePageId, analytics: null, analyticsError: null }),
 
-    createPage: ({ path, title, navId }) => {
+    createPage: ({ path, title, navId, templateId }) => {
       const id = newPageId();
       const now = new Date().toISOString();
       const locale = get().editingLocale;
@@ -138,7 +141,9 @@ export const useEditorStore = create<EditorStore>((set, get) => {
         navId,
         status: 'draft',
         seo: { title: { [locale]: title } },
-        content: emptyPuckData(),
+        content: templateId
+          ? getTemplate(templateId).build({ title, locale })
+          : emptyPuckData(),
         canvasWidth: 1440,
         sourceLocale: locale,
         createdAt: now,
@@ -148,6 +153,13 @@ export const useEditorStore = create<EditorStore>((set, get) => {
       set((s) => ({ pages: [...s.pages, page], activePageId: id, dirty: true }));
       return id;
     },
+
+    applyTemplate: (pageId, templateId) =>
+      patchPage(pageId, (p) => ({
+        ...p,
+        content: getTemplate(templateId).build({ title: p.title, locale: p.sourceLocale }),
+        revision: p.revision + 1,
+      })),
 
     updatePageMeta: (pageId, patch) =>
       patchPage(pageId, (p) => ({ ...p, ...patch, ...(patch.path ? { path: normalizePath(patch.path) } : {}) })),

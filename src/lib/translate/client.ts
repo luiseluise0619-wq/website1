@@ -1,5 +1,6 @@
 'use client';
 
+import { fetchJson } from '@/lib/fetchJson';
 import type { LocaleCode } from '@/types/schema';
 
 /* =============================================================================
@@ -19,15 +20,9 @@ export type TranslateBatchOutput = Partial<Record<LocaleCode, string[]>> & {
 };
 
 export async function translateBatch(input: TranslateBatchInput): Promise<TranslateBatchOutput> {
-  const res = await fetch('/api/translate', {
+  return fetchJson<TranslateBatchOutput>('/api/translate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-
-  if (!res.ok) {
-    const detail = await res.json().catch(() => ({}));
-    throw new Error((detail as { error?: string }).error ?? `번역 요청 실패 (${res.status})`);
-  }
-  return (await res.json()) as TranslateBatchOutput;
 }

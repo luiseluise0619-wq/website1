@@ -5,6 +5,7 @@ import { useEditorStore } from '@/store/editorStore';
 import { LOCALES, LOCALE_ORDER } from '@/lib/i18n';
 import { translatePage } from '@/lib/translate/pipeline';
 import { coverageReport } from '@/lib/translate/walk';
+import { PAGE_TEMPLATES } from '@/data/templates';
 import type { LocaleCode, PuckPageData } from '@/types/schema';
 
 /* =============================================================================
@@ -32,6 +33,7 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave }: EditorT
   const dirty = useEditorStore((s) => s.dirty);
   const saving = useEditorStore((s) => s.saving);
   const updatePageMeta = useEditorStore((s) => s.updatePageMeta);
+  const applyTemplate = useEditorStore((s) => s.applyTemplate);
 
   const [message, setMessage] = React.useState<string | null>(null);
 
@@ -90,6 +92,29 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave }: EditorT
           <option value="archived">보관</option>
         </select>
       </div>
+
+      {/* 현재 페이지를 다른 템플릿으로 갈아끼운다 */}
+      <select
+        value=""
+        title="이 페이지에 템플릿 적용 (내용이 교체됩니다)"
+        onChange={(e) => {
+          const id = e.target.value;
+          e.target.value = '';
+          if (!id) return;
+          const t = PAGE_TEMPLATES.find((x) => x.id === id);
+          if (!t) return;
+          if (!window.confirm(`'${t.name}' 템플릿으로 교체합니다. 현재 페이지 내용은 사라집니다. 계속할까요?`)) return;
+          applyTemplate(page.id, id);
+        }}
+        style={{ ...input, width: 130 }}
+      >
+        <option value="">템플릿 적용…</option>
+        {PAGE_TEMPLATES.map((t) => (
+          <option key={t.id} value={t.id}>
+            {t.name}
+          </option>
+        ))}
+      </select>
 
       <div style={{ flex: 1 }} />
 

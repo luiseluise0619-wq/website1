@@ -6,6 +6,7 @@ import '@puckeditor/core/puck.css';
 import { puckConfig } from '@/puck/config';
 import { RenderCtx } from '@/puck/blocks/shared';
 import { useEditorStore } from '@/store/editorStore';
+import { fetchJson } from '@/lib/fetchJson';
 import { PageTree } from './PageTree';
 import { EditorToolbar } from './EditorToolbar';
 import { RightPanel } from './RightPanel';
@@ -13,6 +14,7 @@ import { FreeTransformLayer } from './FreeTransformLayer';
 import { HeatmapOverlay } from '@/components/analytics/HeatmapOverlay';
 import type { Data } from '@puckeditor/core';
 import type { PageDocument, PuckPageData } from '@/types/schema';
+import type { PageAnalyticsSummary } from '@/types/analytics';
 
 /* =============================================================================
  * Editor Shell — 3분할 레이아웃
@@ -66,13 +68,8 @@ export function EditorShell({ initialPages, storage }: { initialPages: PageDocum
     let cancelled = false;
     setAnalyticsLoading(true);
     const params = new URLSearchParams({ pageId: activePage.id, from: heatmapRange.from, to: heatmapRange.to });
-    fetch(`/api/analytics/summary?${params}`)
-      .then((r) => r.json())
-      .then((json) => {
-        if (cancelled) return;
-        if (json.error) setAnalyticsError(json.error);
-        else setAnalytics(json.summary);
-      })
+    fetchJson<{ summary: PageAnalyticsSummary }>(`/api/analytics/summary?${params}`)
+      .then((json) => !cancelled && setAnalytics(json.summary))
       .catch((err) => !cancelled && setAnalyticsError(err.message));
     return () => {
       cancelled = true;
@@ -103,13 +100,11 @@ export function EditorShell({ initialPages, storage }: { initialPages: PageDocum
         status: publish ? 'published' : activePage.status,
         updatedAt: new Date().toISOString(),
       };
-      const res = await fetch('/api/pages', {
+      await fetchJson('/api/pages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ page }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? '저장 실패');
       commitContent(activePage.id, content);
       if (publish) updatePageMeta(activePage.id, { status: 'published' });
       markSaved();
