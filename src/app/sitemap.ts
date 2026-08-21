@@ -1,18 +1,15 @@
 import { listPages } from '@/lib/server/pageStore';
 import { LOCALES, LOCALE_ORDER } from '@/lib/i18n';
+import { siteUrl } from '@/lib/siteUrl';
 import type { MetadataRoute } from 'next';
 
-/** 배포 도메인 — Vercel 이 주입하는 값을 우선 사용한다 */
-function baseUrl(): string {
-  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, '');
-  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return 'http://localhost:3000';
-}
+/* 정적 생성하면 빌드 시점 도메인이 박혀, 나중에 커스텀 도메인을 붙여도
+   sitemap 이 옛 주소를 가리킨다. 크롤러만 호출하므로 런타임 생성이 저렴하다. */
+export const dynamic = 'force-dynamic';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const pages = await listPages();
-  const base = baseUrl();
+  const base = siteUrl();
 
   return pages
     .filter((page) => page.status === 'published' && !page.seo.noindex)
