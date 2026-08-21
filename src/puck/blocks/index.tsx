@@ -1,0 +1,304 @@
+'use client';
+
+import React from 'react';
+import { DropZone } from '@puckeditor/core';
+import { BlockShell, FreeCtx, toEmbedUrl, useLocalized, useRenderCtx } from './shared';
+import { blockCSS } from '@/lib/style';
+import type {
+  ActionBinding,
+  BaseBlockProps,
+  ContainerProps,
+  DividerProps,
+  ImageProps,
+  LocalizedText,
+  ShapeProps,
+  TextProps,
+  VideoProps,
+} from '@/types/schema';
+
+/* =============================================================================
+ * K-SOHO GLOBAL 블록 라이브러리
+ * 각 블록은 (a) 자유 스타일 편집 (b) 다국어 (c) 클릭 추적 을 기본 탑재한다.
+ * ========================================================================== */
+
+type Block<P> = P & BaseBlockProps & { id?: string; free?: boolean };
+
+/* ---- Text ----------------------------------------------------------------- */
+
+export function TextBlock(props: Block<TextProps>) {
+  const { tag = 'p', html } = props;
+  const value = useLocalized(html);
+  return (
+    <BlockShell {...props} elementType="Text" as={tag} free={props.free}>
+      {/* 인라인 서식(<strong>, <span style="color">)을 허용하기 위한 HTML 렌더.
+          값은 저장 시점(/api/pages)에 sanitizeHtml() 로 정화되어 들어온다. */}
+      <span dangerouslySetInnerHTML={{ __html: value }} />
+    </BlockShell>
+  );
+}
+
+/* ---- Button --------------------------------------------------------------- */
+
+export interface ButtonBlockProps {
+  label: LocalizedText;
+  action: ActionBinding;
+}
+
+export function ButtonBlock(props: Block<ButtonBlockProps>) {
+  const label = useLocalized(props.label);
+  const { isEditing } = useRenderCtx();
+  const action = props.action ?? { type: 'none' as const };
+
+  const handleClick = (e: React.MouseEvent) => {
+    // 에디터 캔버스 안에서는 링크가 실제로 이동하면 편집이 불가능해진다
+    if (isEditing) {
+      e.preventDefault();
+      return;
+    }
+    if (action.type === 'scrollTo' && action.value) {
+      e.preventDefault();
+      document.querySelector(`[data-element-id="${action.value}"]`)?.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  const href =
+    action.type === 'navigate' || action.type === 'externalLink' ? action.value ?? '#' : undefined;
+
+  return (
+    <BlockShell {...props} elementType="Button" as={href ? 'a' : 'button'} free={props.free} onClick={handleClick}>
+      {/* BlockShell 이 style/추적을 담당하므로 여기서는 콘텐츠만 */}
+      <ButtonInner href={href} target={action.target} label={label} />
+    </BlockShell>
+  );
+}
+
+function ButtonInner({ href, target, label }: { href?: string; target?: string; label: string }) {
+  // a/button 태그 자체는 BlockShell 이 렌더하므로, href 는 shell 밖에서 부여할 수 없다.
+  // 대신 전체 영역을 덮는 링크를 깔아 클릭 타깃과 접근성을 동시에 만족시킨다.
+  return (
+    <>
+      {href ? (
+        <a
+          href={href}
+          target={target}
+          rel={target === '_blank' ? 'noopener noreferrer' : undefined}
+          style={{ position: 'absolute', inset: 0, borderRadius: 'inherit' }}
+          aria-label={label}
+        />
+      ) : null}
+      <span style={{ position: 'relative', pointerEvents: 'none' }}>{label}</span>
+    </>
+  );
+}
+
+/* ---- Image ---------------------------------------------------------------- */
+
+export function ImageBlock(props: Block<ImageProps>) {
+  const alt = useLocalized(props.alt);
+  const { locale } = useRenderCtx();
+  const src = props.srcByLocale?.[locale] || props.src;
+  return (
+    <BlockShell {...props} elementType="Image" free={props.free}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt={alt}
+        style={{
+          width: '100%',
+          height: '100%',
+          objectFit: props.objectFit ?? 'cover',
+          objectPosition: props.objectPosition,
+          display: 'block',
+          borderRadius: 'inherit',
+        }}
+      />
+    </BlockShell>
+  );
+}
+
+/* ---- Video ---------------------------------------------------------------- */
+
+export function VideoBlock(props: Block<VideoProps>) {
+  const { locale } = useRenderCtx();
+  const source = props.sourceByLocale?.[locale] || props.source;
+
+  return (
+    <BlockShell {...props} elementType="Video" free={props.free}>
+      {props.provider === 'file' ? (
+        <video
+          src={source}
+          poster={props.poster}
+          controls={props.controls ?? true}
+          autoPlay={props.autoplay}
+          loop={props.loop}
+          muted={props.muted ?? props.autoplay}
+          playsInline
+          style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
+        />
+      ) : (
+        <iframe
+          src={toEmbedUrl(props.provider, source, props)}
+          title="video"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          style={{ width: '100%', height: '100%', border: 0, borderRadius: 'inherit', display: 'block' }}
+        />
+      )}
+    </BlockShell>
+  );
+}
+
+/* ---- Shape ---------------------------------------------------------------- */
+
+export function ShapeBlock(props: Block<ShapeProps>) {
+  const { kind = 'rect', fill = '#3b82f6', stroke, strokeWidth = 0, svgPath, viewBox, points } = props;
+
+  const shape = () => {
+    const common = { fill, stroke, strokeWidth };
+    switch (kind) {
+      case 'circle':
+        return <circle cx="50" cy="50" r="50" {...common} />;
+      case 'ellipse':
+        return <ellipse cx="50" cy="50" rx="50" ry="35" {...common} />;
+      case 'line':
+        return <line x1="0" y1="50" x2="100" y2="50" stroke={stroke ?? fill} strokeWidth={strokeWidth || 4} />;
+      case 'triangle':
+        return <polygon points="50,0 100,100 0,100" {...common} />;
+      case 'polygon':
+        return <polygon points={(points ?? []).map((pt) => pt.join(',')).join(' ')} {...common} />;
+      case 'svg':
+        return <path d={svgPath ?? ''} {...common} />;
+      default:
+        return <rect x="0" y="0" width="100" height="100" {...common} />;
+    }
+  };
+
+  return (
+    <BlockShell {...props} elementType="Shape" free={props.free}>
+      <svg
+        viewBox={viewBox ?? '0 0 100 100'}
+        preserveAspectRatio="none"
+        style={{ width: '100%', height: '100%', display: 'block', overflow: 'visible' }}
+      >
+        {shape()}
+      </svg>
+    </BlockShell>
+  );
+}
+
+/* ---- Divider / Spacer ----------------------------------------------------- */
+
+export function DividerBlock(props: Block<DividerProps>) {
+  const { orientation = 'horizontal', thickness = 1, color = '#e5e7eb' } = props;
+  return (
+    <BlockShell {...props} elementType="Divider" free={props.free}>
+      <div
+        style={{
+          width: orientation === 'horizontal' ? '100%' : thickness,
+          height: orientation === 'horizontal' ? thickness : '100%',
+          background: color,
+        }}
+      />
+    </BlockShell>
+  );
+}
+
+export function SpacerBlock(props: Block<{ size: number }>) {
+  return <div style={{ height: props.size ?? 48 }} data-element-id={props.trackingId || props.id} data-no-track="true" />;
+}
+
+/* ---- Embed ---------------------------------------------------------------- */
+
+export function EmbedBlock(props: Block<{ html: string }>) {
+  return (
+    <BlockShell {...props} elementType="Embed" free={props.free}>
+      <div dangerouslySetInnerHTML={{ __html: props.html ?? '' }} style={{ width: '100%', height: '100%' }} />
+    </BlockShell>
+  );
+}
+
+/* ---- Container (Flex / Grid) ---------------------------------------------- */
+
+export function ContainerBlock(props: Block<ContainerProps> & { zoneId?: string }) {
+  const css = blockCSS(props, { free: props.free });
+  const layout = props.layoutMode ?? 'flex';
+  const elementId = props.trackingId || props.id || 'container';
+
+  return (
+    <div style={css} data-element-id={elementId} data-element-type="Container" data-element-name={props.name}>
+      {/* DropZone 이 Puck 의 중첩 편집 지점이다 — 관리자가 여기에 블록을 끌어다 놓는다 */}
+      <DropZone
+        zone="items"
+        style={{
+          display: layout === 'grid' ? 'grid' : 'flex',
+          width: '100%',
+          height: '100%',
+          ...(layout === 'grid'
+            ? {
+                gridTemplateColumns:
+                  typeof props.style?.grid?.columns === 'number'
+                    ? `repeat(${props.style.grid.columns}, minmax(0,1fr))`
+                    : props.style?.grid?.columns,
+              }
+            : {
+                flexDirection: props.style?.flex?.direction ?? 'row',
+                justifyContent: props.style?.flex?.justify,
+                alignItems: props.style?.flex?.align,
+                flexWrap: props.style?.flex?.wrap ?? 'wrap',
+              }),
+          gap: props.style?.flex?.gap ?? props.style?.grid?.gap ?? 16,
+        }}
+      />
+    </div>
+  );
+}
+
+/* ---- Section -------------------------------------------------------------- */
+
+export function SectionBlock(props: Block<ContainerProps>) {
+  const css = blockCSS(props, { free: false });
+  const elementId = props.trackingId || props.id || 'section';
+  const maxWidth = props.contentMaxWidth ?? 1280;
+
+  return (
+    <section
+      style={{ ...css, position: 'relative', width: '100%' }}
+      /* 섹션 단위 data-element-id 는 '이탈 지점' 분석의 기준이다 —
+         IntersectionObserver 가 이 요소들을 관측한다. */
+      data-element-id={elementId}
+      data-element-type="Section"
+      data-element-name={props.name}
+      data-section="true"
+    >
+      <div style={{ maxWidth, margin: '0 auto', width: '100%', height: '100%', position: 'relative' }}>
+        <DropZone zone="content" />
+      </div>
+    </section>
+  );
+}
+
+/* ---- FreeCanvas (절대좌표 자유 배치) --------------------------------------- */
+
+/**
+ * 원 요구사항의 "X/Y/Z 자유 배치"를 Puck 위에서 성립시키는 블록.
+ * 자식들은 흐름 배치 대신 placement(x,y,z) 좌표로 놓인다.
+ */
+export function FreeCanvasBlock(props: Block<{ height: number; snap?: number }>) {
+  const css = blockCSS(props, { free: false });
+  const elementId = props.trackingId || props.id || 'canvas';
+
+  return (
+    <div
+      style={{ ...css, position: 'relative', width: '100%', height: props.height ?? 640, overflow: 'hidden' }}
+      data-element-id={elementId}
+      data-element-type="FreeCanvas"
+      data-free-canvas="true"
+    >
+      {/* 자식들은 각자 position:absolute + left/top 으로 자리를 잡는다.
+          FreeCtx 가 "여기서는 placement 좌표를 쓰라"고 알린다. */}
+      <FreeCtx.Provider value>
+        <DropZone zone="layers" style={{ position: 'absolute', inset: 0 }} />
+      </FreeCtx.Provider>
+    </div>
+  );
+}

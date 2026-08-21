@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ks-ink: #0d0f14;
+  --ks-panel: #151922;
+  --ks-panel2: #1b2029;
+  --ks-edge: #262d3a;
+  --ks-accent: #3b82f6;
+  --ks-muted: #8b95a7;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, 'Noto Sans KR', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 에디터 캔버스 안의 자유 배치 요소가 부모를 벗어나도 잘리지 않게 */
+[data-free-canvas='true'] { isolation: isolate; }
+
+/* 버튼 블록은 링크 오버레이를 위해 relative 가 보장돼야 한다 */
+[data-element-type='Button'] { position: relative; }
