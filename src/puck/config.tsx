@@ -18,6 +18,7 @@ import {
 import { FormBlock, type FormBlockProps } from './blocks/FormBlock';
 import { CarouselBlock, type CarouselBlockProps } from './blocks/CarouselBlock';
 import { ICON_OPTIONS, IconBlock, type IconBlockProps } from './blocks/IconBlock';
+import { CanvasScrollFix } from './blocks/CanvasScrollFix';
 import { localizedText } from './fields/LocalizedTextField';
 import { placementField, styleField } from './fields/StyleFields';
 import type {
@@ -478,8 +479,14 @@ export const puckConfig: Config<KsohoBlocks, KsohoRootProps> = {
       fontFamily: { type: 'text', label: '기본 폰트' },
     },
     defaultProps: { background: '#ffffff', fontFamily: 'var(--font-noto-kr), sans-serif' },
+    /* minHeight:'100%' 를 쓰면 안 된다: 페이지 높이가 프레임 높이에 의존하고,
+       Puck 은 그 페이지 높이로 프레임을 다시 잰다. 서로를 참조하는 바람에
+       섹션을 추가해도 프레임이 자라지 않아 아래쪽이 잘려 보이지 않는다. */
     render: ({ children, background, fontFamily }) => (
-      <div style={{ background, fontFamily, minHeight: '100%' }}>{children}</div>
+      <div style={{ background, fontFamily }}>
+        <CanvasScrollFix />
+        {children}
+      </div>
     ),
   },
 };

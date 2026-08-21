@@ -161,10 +161,14 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
 
       mo?.disconnect();
       observedDoc?.defaultView?.removeEventListener('scroll', rerun);
+      observedDoc?.body?.removeEventListener('scroll', rerun);
       observedDoc = doc;
       mo = new MutationObserver(rerun);
       mo.observe(doc.body, { subtree: true, attributes: true, childList: true });
+      /* 편집 캔버스는 body 가 스크롤러다(CanvasScrollFix 참조).
+         window 에만 걸면 스크롤해도 선택 박스가 따라오지 않는다. */
       doc.defaultView?.addEventListener('scroll', rerun, { passive: true });
+      doc.body.addEventListener('scroll', rerun, { passive: true });
     };
 
     attach();
@@ -177,6 +181,7 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
       clearInterval(timer);
       mo?.disconnect();
       observedDoc?.defaultView?.removeEventListener('scroll', rerun);
+      observedDoc?.body?.removeEventListener('scroll', rerun);
       window.removeEventListener('resize', rerun);
     };
   }, [measure]);
@@ -442,6 +447,16 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
     setTimeout(reveal, 80);
   };
 
+  /* 오버레이가 포인터를 받으므로 휠 이벤트도 우리에게 온다.
+     그대로 두면 캔버스 위에서 마우스를 굴려도 페이지가 스크롤되지 않는다.
+     받은 만큼 캔버스(iframe body)를 직접 굴려 준다. */
+  const forwardWheel = (e: React.WheelEvent) => {
+    const doc = document.querySelector<HTMLIFrameElement>('iframe')?.contentDocument;
+    if (!doc) return;
+    const scroller = doc.body.scrollHeight > doc.body.clientHeight ? doc.body : doc.scrollingElement;
+    if (scroller) scroller.scrollTop += e.deltaY;
+  };
+
   return createPortal(
     <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 2000 }}>
       {/* 캔버스 어디서든 닿는 섹션 추가 버튼 */}
@@ -487,6 +502,7 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
             beginDrag(e, id);
           }}
           onClick={(e) => e.stopPropagation()}
+          onWheel={forwardWheel}
           style={{
             position: 'absolute',
             top: r.top,
@@ -501,6 +517,7 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
       {selected && box ? (
       <div
         onPointerDown={start('move')}
+        onWheel={forwardWheel}
         style={{
           position: 'absolute',
           top: box.top,
