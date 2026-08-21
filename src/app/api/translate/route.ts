@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { translate, TranslationError } from '@/lib/translate/providers';
 import { isLocale } from '@/lib/i18n';
+import { assertAdmin } from '@/lib/server/auth';
 import type { LocaleCode } from '@/types/schema';
 
 export const dynamic = 'force-dynamic';
@@ -23,6 +24,10 @@ const MAX_CHARS = 30_000;
  * 브라우저는 API 키를 갖지 않는다. 이 라우트가 유일한 번역 경로다.
  */
 export async function POST(request: Request) {
+  // 번역은 유료 외부 API 를 호출한다 — 인증 없이 열어두면 비용이 새어 나간다
+  const auth = assertAdmin();
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
   let body: Body;
   try {
     body = (await request.json()) as Body;

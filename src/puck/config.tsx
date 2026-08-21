@@ -15,6 +15,7 @@ import {
   TextBlock,
   VideoBlock,
 } from './blocks';
+import { FormBlock, type FormBlockProps } from './blocks/FormBlock';
 import { localizedText } from './fields/LocalizedTextField';
 import { placementField, styleField } from './fields/StyleFields';
 import type {
@@ -53,6 +54,7 @@ export type KsohoBlocks = {
   Video: VideoProps & BaseBlockProps;
   Shape: ShapeProps & BaseBlockProps;
   Embed: { html: string } & BaseBlockProps;
+  Form: FormBlockProps & BaseBlockProps;
 };
 
 export type KsohoRootProps = { background: string; fontFamily: string };
@@ -78,6 +80,7 @@ export const puckConfig: Config<KsohoBlocks, KsohoRootProps> = {
     layout: { title: '레이아웃', components: ['Section', 'FreeCanvas', 'Container', 'Spacer', 'Divider'] },
     content: { title: '콘텐츠', components: ['Text', 'Button', 'Image'] },
     media: { title: '미디어', components: ['Video', 'Shape', 'Embed'] },
+    business: { title: '비즈니스', components: ['Form'] },
   },
 
   components: {
@@ -357,6 +360,65 @@ export const puckConfig: Config<KsohoBlocks, KsohoRootProps> = {
         style: { width: '100%', minHeight: 200 },
       },
       render: (props) => <EmbedBlock {...props} />,
+    },
+
+    /* ---- 비즈니스 ---- */
+    Form: {
+      label: '문의 폼',
+      fields: {
+        formName: { type: 'text', label: '폼 이름 (접수 데이터 분류 키)' },
+        fields: {
+          type: 'array',
+          label: '입력 항목',
+          arrayFields: {
+            name: { type: 'text', label: '저장 키 (영문)' },
+            label: localizedText('라벨 (다국어)'),
+            type: {
+              type: 'select',
+              label: '유형',
+              options: [
+                { label: '한 줄 텍스트', value: 'text' },
+                { label: '이메일', value: 'email' },
+                { label: '전화번호', value: 'tel' },
+                { label: '여러 줄', value: 'textarea' },
+                { label: '선택', value: 'select' },
+              ],
+            },
+            required: { type: 'radio', label: '필수', options: [{ label: '예', value: true }, { label: '아니오', value: false }] },
+            placeholder: localizedText('안내 문구 (다국어)'),
+            options: { type: 'textarea', label: '선택지 (줄바꿈 구분)' },
+          },
+          getItemSummary: (item: { name?: string }) => item?.name || '항목',
+        },
+        submitLabel: localizedText('제출 버튼 (다국어)'),
+        successMessage: localizedText('접수 완료 메시지 (다국어)', true),
+        consentLabel: localizedText('개인정보 동의 문구 (다국어)', true),
+        ...commonFields,
+      },
+      defaultProps: {
+        ...commonDefaults,
+        formName: 'buyer-inquiry',
+        name: 'Inquiry Form',
+        conversionGoal: 'inquiry_submit',
+        fields: [
+          { name: 'company', label: { ko: '회사명', en: 'Company' }, type: 'text', required: true },
+          { name: 'name', label: { ko: '담당자명', en: 'Contact name' }, type: 'text', required: true },
+          { name: 'email', label: { ko: '이메일', en: 'Email' }, type: 'email', required: true },
+          { name: 'country', label: { ko: '국가', en: 'Country' }, type: 'select', required: false, options: 'Thailand\nJapan\nVietnam\nSingapore\nUSA\nOther' },
+          { name: 'message', label: { ko: '문의 내용', en: 'Message' }, type: 'textarea', required: true },
+        ],
+        submitLabel: { ko: '문의하기', en: 'Send inquiry' },
+        successMessage: { ko: '문의가 접수되었습니다. 확인 후 연락드리겠습니다.', en: 'Thank you. We will get back to you shortly.' },
+        consentLabel: { ko: '개인정보 수집 및 이용에 동의합니다.', en: 'I agree to the collection and use of my personal data.' },
+        style: {
+          width: '100%',
+          maxWidth: 620,
+          padding: { top: 32, right: 32, bottom: 32, left: 32 },
+          background: { color: '#f8fafc' },
+          border: { radius: 16, style: 'solid', width: 1, color: '#e2e8f0' },
+        },
+      },
+      render: (props) => <FormBlock {...props} />,
     },
   },
 

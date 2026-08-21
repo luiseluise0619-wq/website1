@@ -155,6 +155,17 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave }: EditorT
         <button type="button" onClick={() => onSave(true)} disabled={saving} style={{ ...btn, background: '#22c55e', color: '#04210f', fontWeight: 700 }}>
           발행
         </button>
+        <button
+          type="button"
+          title="로그아웃"
+          onClick={async () => {
+            await fetch('/api/admin/login', { method: 'DELETE' });
+            window.location.href = '/admin/login';
+          }}
+          style={{ ...btn, opacity: 0.7 }}
+        >
+          ⏻
+        </button>
       </div>
 
       {message ? (

@@ -20,7 +20,14 @@ import type { PageDocument, PuckPageData } from '@/types/schema';
  * Puck 이 자체 좌/우 패널을 갖고 있으므로, 우리는 그 바깥에 우리 패널을 덧댄다.
  * ========================================================================== */
 
-export function EditorShell({ initialPages }: { initialPages: PageDocument[] }) {
+export interface StorageStatus {
+  pages: { driver: string; readOnly: boolean };
+  analytics: { driver: string; readOnly: boolean };
+  serverless: boolean;
+  hint?: string;
+}
+
+export function EditorShell({ initialPages, storage }: { initialPages: PageDocument[]; storage?: StorageStatus }) {
   const pages = useEditorStore((s) => s.pages);
   const activePage = useEditorStore((s) => s.activePage());
   const loadPages = useEditorStore((s) => s.loadPages);
@@ -37,6 +44,7 @@ export function EditorShell({ initialPages }: { initialPages: PageDocument[] }) 
   const updatePageMeta = useEditorStore((s) => s.updatePageMeta);
 
   const [rightTab, setRightTab] = React.useState<'inspector' | 'seo' | 'analytics'>('inspector');
+  const [saveError, setSaveError] = React.useState<string | null>(null);
   const canvasRef = React.useRef<HTMLDivElement>(null);
   /** Puck 캔버스는 iframe 안에서 렌더된다 — 히트맵 측정 대상 */
   const [canvasDoc, setCanvasDoc] = React.useState<Document | null>(null);
@@ -87,6 +95,7 @@ export function EditorShell({ initialPages }: { initialPages: PageDocument[] }) 
   const handleSave = async (publish?: boolean) => {
     if (!activePage) return;
     setSaving(true);
+    setSaveError(null);
     try {
       const content = liveData.current ?? activePage.content;
       const page: PageDocument = {
@@ -106,7 +115,7 @@ export function EditorShell({ initialPages }: { initialPages: PageDocument[] }) 
       if (publish) updatePageMeta(activePage.id, { status: 'published' });
       markSaved();
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : '저장에 실패했습니다.');
+      setSaveError(err instanceof Error ? err.message : '저장에 실패했습니다.');
       setSaving(false);
     }
   };
@@ -144,6 +153,18 @@ export function EditorShell({ initialPages }: { initialPages: PageDocument[] }) 
             onReplaceData={replaceData}
             onSave={handleSave}
           />
+
+          {/* 저장이 불가능한 배포에서는 편집 전에 미리 알린다 */}
+          {storage?.pages.readOnly ? (
+            <Banner tone="warn">
+              <strong>읽기 전용 배포</strong> — {storage.hint ?? '데이터베이스가 연결되지 않아 저장할 수 없습니다.'}
+            </Banner>
+          ) : null}
+          {saveError ? (
+            <Banner tone="error" onClose={() => setSaveError(null)}>
+              {saveError}
+            </Banner>
+          ) : null}
 
           <div ref={canvasRef} style={{ flex: 1, position: 'relative', minHeight: 0 }}>
             <Puck
@@ -199,6 +220,44 @@ export function EditorShell({ initialPages }: { initialPages: PageDocument[] }) 
         </aside>
       </div>
     </RenderCtx.Provider>
+  );
+}
+
+function Banner({
+  tone,
+  children,
+  onClose,
+}: {
+  tone: 'warn' | 'error';
+  children: React.ReactNode;
+  onClose?: () => void;
+}) {
+  const palette =
+    tone === 'error'
+      ? { bg: 'rgba(239,68,68,.14)', fg: '#fca5a5', edge: 'rgba(239,68,68,.4)' }
+      : { bg: 'rgba(245,158,11,.14)', fg: '#fcd34d', edge: 'rgba(245,158,11,.4)' };
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '9px 14px',
+        fontSize: 12,
+        lineHeight: 1.6,
+        background: palette.bg,
+        color: palette.fg,
+        borderBottom: `1px solid ${palette.edge}`,
+      }}
+    >
+      <span style={{ flex: 1 }}>{children}</span>
+      {onClose ? (
+        <button type="button" onClick={onClose} style={{ background: 'none', border: 0, color: 'inherit', cursor: 'pointer', fontSize: 15 }}>
+          ×
+        </button>
+      ) : null}
+    </div>
   );
 }
 

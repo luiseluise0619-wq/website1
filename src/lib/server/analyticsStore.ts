@@ -1,6 +1,5 @@
 import 'server-only';
-import { promises as fs } from 'node:fs';
-import path from 'node:path';
+import { analyticsStorage } from './storage';
 import type {
   AnalyticsEvent,
   AnalyticsEventRow,
@@ -22,72 +21,39 @@ import type { LocaleCode } from '@/types/schema';
 /* =============================================================================
  * Analytics Store — 수집 · 적재 · 집계
  * -----------------------------------------------------------------------------
- * 데모에서는 NDJSON 파일에 append 한다(원본 이벤트 = append-only 로그).
- * 운영에서는 아래 두 함수만 교체하면 된다:
- *   insertEvents()  → Kafka/Kinesis produce 또는 ClickHouse INSERT
- *   summarize()     → 롤업 테이블 조회 (analytics_element_daily 등)
- * 집계 로직 자체는 SQL 로 옮겨도 결과가 동일하도록 순수 함수로 유지한다.
+ * 적재/조회는 storage 드라이버가, 집계는 이 파일의 순수 함수가 담당한다.
+ * 트래픽이 커지면 summarize() 를 롤업 테이블(analytics_element_daily) 조회로
+ * 바꾸면 되고, 결과 형태(PageAnalyticsSummary)는 그대로 유지된다.
  * ========================================================================== */
-
-const DATA_DIR = process.env.ANALYTICS_STORE_DIR ?? path.join(process.cwd(), '.data');
-const EVENTS_FILE = path.join(DATA_DIR, 'events.ndjson');
-
-/** 중복 제거용 — 재전송된 배치가 통계를 부풀리지 않게 한다 */
-const seenEventIds = new Set<string>();
 
 export async function insertEvents(events: AnalyticsEvent[], meta: { country?: string } = {}): Promise<number> {
   if (!events.length) return 0;
-  await fs.mkdir(DATA_DIR, { recursive: true });
-
   const receivedAt = new Date().toISOString();
-  const rows: AnalyticsEventRow[] = [];
 
-  for (const event of events) {
-    if (!event?.eventId || seenEventIds.has(event.eventId)) continue;
-    seenEventIds.add(event.eventId);
-    const ts = new Date(event.ts || Date.now()).toISOString();
-    rows.push({
-      eventId: event.eventId,
-      day: ts.slice(0, 10),
-      ts,
-      receivedAt,
-      type: event.type,
-      anonymousId: event.context.anonymousId,
-      sessionId: event.context.sessionId,
-      pageId: event.context.pageId,
-      path: event.context.path,
-      locale: event.context.locale,
-      elementId: (event.payload as { elementId?: string; sectionId?: string })?.elementId
-        ?? (event.payload as { sectionId?: string })?.sectionId
-        ?? null,
-      deviceType: event.context.device?.type ?? 'desktop',
-      country: meta.country ?? event.context.device?.country ?? null,
-      payload: event.payload as Record<string, unknown>,
+  const rows: AnalyticsEventRow[] = events
+    .filter((event) => Boolean(event?.eventId))
+    .map((event) => {
+      const ts = new Date(event.ts || Date.now()).toISOString();
+      const payload = event.payload as { elementId?: string; sectionId?: string } | undefined;
+      return {
+        eventId: event.eventId,
+        day: ts.slice(0, 10),
+        ts,
+        receivedAt,
+        type: event.type,
+        anonymousId: event.context.anonymousId,
+        sessionId: event.context.sessionId,
+        pageId: event.context.pageId,
+        path: event.context.path,
+        locale: event.context.locale,
+        elementId: payload?.elementId ?? payload?.sectionId ?? null,
+        deviceType: event.context.device?.type ?? 'desktop',
+        country: meta.country ?? event.context.device?.country ?? null,
+        payload: event.payload as Record<string, unknown>,
+      };
     });
-  }
 
-  if (!rows.length) return 0;
-  await fs.appendFile(EVENTS_FILE, rows.map((r) => JSON.stringify(r)).join('\n') + '\n', 'utf8');
-  return rows.length;
-}
-
-async function readRows(): Promise<AnalyticsEventRow[]> {
-  try {
-    const raw = await fs.readFile(EVENTS_FILE, 'utf8');
-    return raw
-      .split('\n')
-      .filter(Boolean)
-      .map((line) => {
-        try {
-          return JSON.parse(line) as AnalyticsEventRow;
-        } catch {
-          return null;
-        }
-      })
-      .filter((r): r is AnalyticsEventRow => r !== null);
-  } catch {
-    return [];
-  }
+  return analyticsStorage.insert(rows);
 }
 
 /* ---------------------------------------------------------------------------
@@ -95,18 +61,21 @@ async function readRows(): Promise<AnalyticsEventRow[]> {
  * ------------------------------------------------------------------------ */
 
 export async function summarize(filters: AnalyticsFilters): Promise<PageAnalyticsSummary> {
-  const all = await readRows();
-  const from = filters.from ?? '0000-01-01';
-  const to = filters.to ?? '9999-12-31';
-
-  const rows = all.filter((r) => {
-    if (filters.pageId && r.pageId !== filters.pageId) return false;
-    if (r.day < from || r.day > to) return false;
-    if (filters.device && filters.device !== 'all' && r.deviceType !== filters.device) return false;
-    if (filters.locale && filters.locale !== 'all' && r.locale !== filters.locale) return false;
-    if (filters.country && filters.country !== 'all' && r.country !== filters.country) return false;
-    return true;
+  /* 기간 미지정은 '전체 기간'이다. 여기서 센티널 날짜('0000-01-01')를 만들어
+     드라이버에 넘기면 Postgres 가 범위를 벗어난 날짜로 거부한다 — 경계값은
+     드라이버에 넘기지 않고, 표시용 range 에만 사용한다. */
+  const rows = await analyticsStorage.query({
+    pageId: filters.pageId,
+    from: filters.from,
+    to: filters.to,
+    device: filters.device,
+    locale: filters.locale,
+    country: filters.country,
   });
+
+  const days = rows.map((r) => r.day).sort();
+  const from = filters.from ?? days[0] ?? '-';
+  const to = filters.to ?? days[days.length - 1] ?? '-';
 
   const sessions = new Set(rows.map((r) => r.sessionId));
   const visitors = new Set(rows.map((r) => r.anonymousId));

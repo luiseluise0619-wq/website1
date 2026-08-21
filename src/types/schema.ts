@@ -90,6 +90,7 @@ export type ElementType =
   | 'Image'
   | 'Video'       // YouTube / Shorts / mp4 embed
   | 'Shape'       // rect / circle / ellipse / line / custom svg
+  | 'Form'        // BUSINESS 문의 폼 (Buyer Inquiry / Distribution / …)
   | 'Divider'
   | 'Spacer'
   | 'Embed';      // 임의 HTML embed (iframe 등)

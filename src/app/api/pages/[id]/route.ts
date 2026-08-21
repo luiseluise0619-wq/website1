@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { deletePage, getPageById } from '@/lib/server/pageStore';
+import { assertAdmin } from '@/lib/server/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +11,9 @@ export async function GET(_request: Request, { params }: { params: { id: string 
 }
 
 export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
+  const auth = assertAdmin();
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
   await deletePage(params.id);
   return NextResponse.json({ ok: true });
 }

@@ -136,6 +136,97 @@ DeepL 은 **태국어·베트남어를 지원하지 않아** 해당 언어는 �
 `src/lib/server/pageStore.ts` 와 `analyticsStore.ts` 의 함수 시그니처만 유지하면
 나머지 코드는 그대로입니다. 두 파일 상단 주석에 Postgres DDL 예시가 있습니다.
 
+## Vercel 배포
+
+### 1. 저장소 연결
+[vercel.com/new](https://vercel.com/new) → 이 GitHub 저장소 선택 → 프레임워크는 **Next.js** 로 자동 인식됩니다.
+빌드 설정은 그대로 두면 됩니다.
+
+### 2. 데이터베이스 연결 (필수)
+
+**서버리스에는 영구 디스크가 없습니다.** DB 없이 배포하면 사이트는 정상 동작하지만
+에디터 저장·문의 접수가 `503` 으로 거부됩니다 (조용히 사라지는 것보다 낫기 때문에 의도한 동작입니다).
+
+Vercel 대시보드 → **Storage** → **Neon**(또는 Supabase) 추가 → 프로젝트에 연결하면
+`POSTGRES_URL` 이 자동 주입됩니다. 테이블은 첫 요청 때 자동 생성되고, 비어 있으면
+IA 기반 시드 페이지 39개가 들어갑니다. 별도 마이그레이션 명령은 필요 없습니다.
+
+> `DATABASE_URL` 이나 `POSTGRES_PRISMA_URL` 도 인식하므로 Supabase·RDS 등도 그대로 쓸 수 있습니다.
+> 서버리스에서는 커넥션이 빨리 고갈되므로 **풀러(pgbouncer) 연결 문자열**을 권장합니다.
+
+### 3. 환경 변수
+
+Vercel → Settings → Environment Variables 에 등록합니다.
+
+| 변수 | 필수 | 설명 |
+|---|:--:|---|
+| `POSTGRES_URL` | ✅ | Storage 연결 시 자동 주입 |
+| `ADMIN_PASSWORD` | ✅ | 관리자 로그인 비밀번호 |
+| `ADMIN_SESSION_SECRET` | 권장 | 세션 서명 키. 없으면 비밀번호를 키로 사용 (비밀번호 변경 시 전체 로그아웃) |
+| `NEXT_PUBLIC_SITE_URL` | 권장 | `https://your-domain.com` — sitemap/hreflang 절대경로 |
+| `DEEPL_API_KEY` / `GOOGLE_TRANSLATE_API_KEY` | 선택 | 자동번역 |
+| `NEXT_PUBLIC_POSTHOG_KEY` / `_HOST` | 선택 | 히트맵·리플레이 |
+
+**`ADMIN_PASSWORD` 를 설정하지 않으면 프로덕션에서 모든 쓰기가 차단됩니다.**
+비밀번호 없이 공개된 에디터보다 안전한 쪽을 기본값으로 두었습니다.
+
+### 4. 배포 확인
+
+```bash
+curl https://your-app.vercel.app/api/health
+```
+```jsonc
+{
+  "storage": { "pages": { "driver": "postgres", "readOnly": false }, ... },
+  "features": { "adminAuth": true, "deepl": false, ... },
+  "todo": ["번역 API 키가 없어 자동번역이 비활성화됩니다."]   // 남은 설정을 알려준다
+}
+```
+
+`todo` 가 비면 설정이 끝난 것입니다. 이후 `/admin/login` 으로 접속하세요.
+
+### 배포 후 동작
+
+| 항목 | 동작 |
+|---|---|
+| 발행된 페이지 | 빌드 시 정적 생성 (`generateStaticParams`) |
+| 초안/보관 페이지 | 공개 사이트에서 404 |
+| `/admin/*` | 로그인 필요 + `X-Robots-Tag: noindex` |
+| 프리뷰 배포 | `robots.txt` 가 전체 차단 (운영 도메인만 색인) |
+| `/sitemap.xml` | 발행 페이지 + 언어별 `hreflang` 자동 생성 |
+
+## 관리자 인증
+
+비밀번호 → HMAC 서명 세션 쿠키(12시간). 외부 의존성이 없습니다.
+
+- 로컬에서 `ADMIN_PASSWORD` 미설정 시에는 인증 없이 통과합니다(개발 편의).
+- 프로덕션에서 미설정 시에는 **모든 쓰기를 거부**합니다.
+- 미들웨어는 Edge 런타임이라 쿠키 존재만 확인하고, 실제 서명 검증은
+  Node 런타임(페이지·API 라우트)에서 수행합니다.
+
+사용자가 늘면 `src/lib/server/auth.ts` 만 NextAuth/Clerk 로 교체하면 됩니다.
+
+## BUSINESS 문의 폼
+
+`Form` 블록으로 Buyer Inquiry / Distribution / Partnership / Media Inquiry 폼을 만듭니다.
+입력 항목·라벨·선택지를 에디터에서 정의하며 라벨은 언어별로 저장됩니다.
+
+- 제출 → `POST /api/inquiry` (공개, IP당 10분 8건 제한)
+- 조회 → `GET /api/inquiry` (관리자 전용)
+- UTM 파라미터가 함께 저장되어 **어느 채널의 유입이 문의로 이어졌는지** 추적됩니다
+- 제출 버튼은 전환 목표로 집계되어 히트맵/퍼널에 나타납니다
+
+## 저장소 드라이버
+
+| 환경 | 드라이버 | 동작 |
+|---|---|---|
+| 로컬 | `filesystem` | `.data/` 에 JSON/NDJSON |
+| `POSTGRES_URL` 설정 | `postgres` | 스키마 자동 생성 + 시드 주입 |
+| 서버리스 + DB 없음 | `read-only-seed` | 사이트는 서빙, 쓰기는 503 으로 거부 |
+
+서버리스에서 파일시스템 드라이버를 쓰지 않는 이유: 쓰기가 성공한 것처럼 보이지만
+인스턴스가 사라지면 데이터도 사라집니다. 조용히 잃는 것보다 명확히 거부하는 편이 낫습니다.
+
 ## 분석 이벤트
 
 | 이벤트 | 수집 시점 |
