@@ -22,7 +22,7 @@ export async function GET() {
       tolgee: Boolean(process.env.TOLGEE_API_KEY),
       posthog: Boolean(process.env.NEXT_PUBLIC_POSTHOG_KEY),
       ga4: Boolean(process.env.NEXT_PUBLIC_GA4_ID),
-      umami: Boolean(process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID),
+      umami: Boolean(process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID && process.env.NEXT_PUBLIC_UMAMI_URL),
     },
     /* 배포 후 가장 먼저 해야 할 일을 순서대로 알려준다 */
     todo: [

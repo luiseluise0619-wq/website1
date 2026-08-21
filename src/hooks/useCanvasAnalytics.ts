@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { DEFAULT_ANALYTICS_CONFIG, dispatchRealtime, hasConsent, initGA4, sendBatch } from '@/lib/analytics/providers';
 import { getAnonymousId, getDeviceInfo, getSessionId, getUTM, uuid } from '@/lib/analytics/identity';
 import { initPostHog, posthogPageView, sendToPostHog, setPostHogPersonProps } from '@/lib/analytics/posthog';
-import { umamiTrack } from '@/lib/analytics/umami';
+import { initUmami, umamiTrack } from '@/lib/analytics/umami';
 import { SCROLL_THRESHOLDS } from '@/types/analytics';
 import type {
   AnalyticsContext,
@@ -142,6 +142,12 @@ export function useCanvasAnalytics(options: UseCanvasAnalyticsOptions): CanvasAn
       initPostHog({ key: phKey, host: phHost, sessionRecording: options.posthog?.sessionRecording, debug: config.debug });
       setPostHogPersonProps({ locale, last_page: path });
     }
+
+    /* Umami 는 스크립트가 주입돼야 window.umami 가 생긴다.
+       초기화하지 않으면 umamiTrack() 호출이 조용히 무시된다. */
+    const umamiUrl = process.env.NEXT_PUBLIC_UMAMI_URL;
+    const umamiId = process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID;
+    if (umamiUrl && umamiId) initUmami(umamiUrl, umamiId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled]);
 

@@ -136,6 +136,49 @@ DeepL 은 **태국어·베트남어를 지원하지 않아** 해당 언어는 �
 `src/lib/server/pageStore.ts` 와 `analyticsStore.ts` 의 함수 시그니처만 유지하면
 나머지 코드는 그대로입니다. 두 파일 상단 주석에 Postgres DDL 예시가 있습니다.
 
+## 사용한 오픈소스
+
+| 영역 | 라이브러리 | 역할 |
+|---|---|---|
+| 에디터 엔진 | **Puck** (`@puckeditor/core`) | 드래그앤드롭 캔버스, JSON 저장, 인스펙터 |
+| 분석 | **PostHog** | 히트맵·세션 리플레이·퍼널 (셀프호스팅 가능) |
+| 분석(경량) | **Umami** | 병행 수집 |
+| 번역 | **Tolgee** + DeepL / Google | 자동번역 및 번역 관리 |
+| HTML 정화 | **DOMPurify** (`isomorphic-dompurify`) | 저장 시점 XSS 차단 |
+| 입력 검증 | **Zod** | API 요청 스키마 검증·정규화 |
+| 아이콘 | **Lucide** (`lucide-react`) | Icon 블록 |
+| 캐러셀 | **Embla Carousel** | 브랜드·제품 슬라이더 |
+| 폰트 | **Google Fonts** (`next/font`) | Noto Sans KR/Thai/JP/SC, Inter |
+| DB | **Postgres** (`pg`) | 페이지·이벤트·문의 저장 |
+| 테스트 | **Vitest** | 핵심 로직 87개 테스트 |
+
+### 직접 만들지 않고 라이브러리를 쓴 이유
+
+- **DOMPurify** — 처음엔 정규식 정화기를 직접 만들었다. 테스트를 붙이자마자
+  DOMPurify 설정 실수(`USE_PROFILES` 가 허용목록을 덮어써 `<form>` 통과)와
+  `#text` 누락으로 본문이 통째로 사라지는 문제가 드러났다. 정규식은 원리상
+  브라우저 파서와 해석이 어긋날 수 있어(mXSS), 실제 DOM 을 만들어 검사하는
+  라이브러리가 옳다.
+- **Zod** — 손으로 쓴 검사에서는 값 타입 강제(숫자 → 문자열)와 오류 메시지를
+  매번 다시 작성해야 했다.
+- **Lucide** — v1 부터 상표 문제로 브랜드 아이콘(YouTube/Instagram)이 빠졌다.
+  영상·방송 섹션에는 일반 아이콘을 쓴다.
+
+## 테스트
+
+```bash
+npm test          # 87개 테스트
+npm run test:watch
+```
+
+| 파일 | 검증 대상 |
+|---|---|
+| `test/sanitize.test.ts` | XSS 차단 + 정상 서식·다국어 보존 |
+| `test/i18n.test.ts` | 폴백 체인, 원문 변경(stale) 감지, Accept-Language |
+| `test/style.test.ts` | absolute/flex/grid 레이아웃 분기, 반응형 상속, hover 규칙 |
+| `test/translate.test.ts` | 번역 대상 수집, 검수본 보존, 중첩 zone 왕복 |
+| `test/analytics.test.ts` | 클릭 점유율·CTR, 스크롤 퍼널, 섹션 이탈률, 바운스 |
+
 ## Vercel 배포
 
 ### 1. 저장소 연결

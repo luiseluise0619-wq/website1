@@ -120,14 +120,14 @@ export function StyleInspector({ value, onChange }: { value: ElementStyle | unde
             onChange={(e) => patch({ typography: { ...style.typography, fontFamily: e.target.value } })}
             style={{ ...input, width: 130 }}
           >
-            <option value="">기본</option>
-            <option value="'Pretendard', sans-serif">Pretendard</option>
-            <option value="'Noto Sans KR', sans-serif">Noto Sans KR</option>
-            <option value="'Noto Sans Thai', sans-serif">Noto Sans Thai</option>
-            <option value="'Noto Sans JP', sans-serif">Noto Sans JP</option>
-            <option value="'Noto Sans SC', sans-serif">Noto Sans SC</option>
-            <option value="'Inter', sans-serif">Inter</option>
-            <option value="'Playfair Display', serif">Playfair Display</option>
+            {/* next/font 로 실제 로드된 폰트만 노출한다 —
+                로드되지 않은 이름을 고르면 시스템 폰트로 떨어져 디자인이 깨진다 */}
+            <option value="">기본 (언어별 자동)</option>
+            <option value="var(--font-noto-kr), sans-serif">Noto Sans KR</option>
+            <option value="var(--font-inter), sans-serif">Inter</option>
+            <option value="var(--font-noto-thai), sans-serif">Noto Sans Thai</option>
+            <option value="var(--font-noto-jp), sans-serif">Noto Sans JP</option>
+            <option value="var(--font-noto-sc), sans-serif">Noto Sans SC</option>
           </select>
         </label>
         <NumberInput label="크기" value={style.typography?.fontSize} onChange={(fontSize) => patch({ typography: { ...style.typography, fontSize } })} />

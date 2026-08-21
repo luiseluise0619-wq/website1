@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { insertEvents } from '@/lib/server/analyticsStore';
-import type { AnalyticsBatch } from '@/types/analytics';
+import { analyticsBatchSchema } from '@/lib/schemas';
+import type { AnalyticsEvent } from '@/types/analytics';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,16 +20,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'payload too large' }, { status: 413 });
   }
 
-  let batch: AnalyticsBatch;
-  try {
-    batch = (await request.json()) as AnalyticsBatch;
-  } catch {
-    return NextResponse.json({ error: 'invalid json' }, { status: 400 });
-  }
-
-  if (!Array.isArray(batch?.events) || !batch.events.length) {
+  const parsed = analyticsBatchSchema.safeParse(await request.json().catch(() => null));
+  /* 수집은 최선 노력(best-effort)이다. 형식이 틀린 배치 때문에 방문자 브라우저에
+     오류를 돌려줄 이유가 없으므로 조용히 0건 처리한다. */
+  if (!parsed.success || !parsed.data.events.length) {
     return NextResponse.json({ accepted: 0 });
   }
+  const batch = parsed.data;
 
   // 국가 정보는 클라이언트를 믿지 않고 엣지 헤더에서 읽는다
   const country =
@@ -36,6 +34,9 @@ export async function POST(request: Request) {
     request.headers.get('cf-ipcountry') ??
     undefined;
 
-  const accepted = await insertEvents(batch.events.slice(0, MAX_EVENTS), { country: country ?? undefined });
+  const accepted = await insertEvents(
+    batch.events.slice(0, MAX_EVENTS) as unknown as AnalyticsEvent[],
+    { country: country ?? undefined },
+  );
   return NextResponse.json({ accepted }, { status: 202 });
 }

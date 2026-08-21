@@ -16,6 +16,8 @@ import {
   VideoBlock,
 } from './blocks';
 import { FormBlock, type FormBlockProps } from './blocks/FormBlock';
+import { CarouselBlock, type CarouselBlockProps } from './blocks/CarouselBlock';
+import { ICON_OPTIONS, IconBlock, type IconBlockProps } from './blocks/IconBlock';
 import { localizedText } from './fields/LocalizedTextField';
 import { placementField, styleField } from './fields/StyleFields';
 import type {
@@ -55,6 +57,8 @@ export type KsohoBlocks = {
   Shape: ShapeProps & BaseBlockProps;
   Embed: { html: string } & BaseBlockProps;
   Form: FormBlockProps & BaseBlockProps;
+  Icon: IconBlockProps & BaseBlockProps;
+  Carousel: CarouselBlockProps & BaseBlockProps;
 };
 
 export type KsohoRootProps = { background: string; fontFamily: string };
@@ -77,8 +81,8 @@ const commonDefaults = {
 
 export const puckConfig: Config<KsohoBlocks, KsohoRootProps> = {
   categories: {
-    layout: { title: '레이아웃', components: ['Section', 'FreeCanvas', 'Container', 'Spacer', 'Divider'] },
-    content: { title: '콘텐츠', components: ['Text', 'Button', 'Image'] },
+    layout: { title: '레이아웃', components: ['Section', 'FreeCanvas', 'Container', 'Carousel', 'Spacer', 'Divider'] },
+    content: { title: '콘텐츠', components: ['Text', 'Button', 'Image', 'Icon'] },
     media: { title: '미디어', components: ['Video', 'Shape', 'Embed'] },
     business: { title: '비즈니스', components: ['Form'] },
   },
@@ -362,6 +366,52 @@ export const puckConfig: Config<KsohoBlocks, KsohoRootProps> = {
       render: (props) => <EmbedBlock {...props} />,
     },
 
+    Icon: {
+      label: '아이콘',
+      fields: {
+        icon: { type: 'select', label: '아이콘', options: ICON_OPTIONS },
+        size: { type: 'number', label: '크기(px)' },
+        color: { type: 'text', label: '색상' },
+        strokeWidth: { type: 'number', label: '선 두께' },
+        ...commonFields,
+      },
+      defaultProps: {
+        ...commonDefaults,
+        icon: 'star',
+        name: 'Icon',
+        size: 32,
+        color: '#111827',
+        strokeWidth: 2,
+        style: {},
+      },
+      render: (props) => <IconBlock {...props} />,
+    },
+
+    Carousel: {
+      label: '캐러셀 (슬라이더)',
+      fields: {
+        slidesPerView: { type: 'number', label: '한 화면 슬라이드 수' },
+        gap: { type: 'number', label: '슬라이드 간격(px)' },
+        loop: { type: 'radio', label: '무한 반복', options: [{ label: '켬', value: true }, { label: '끔', value: false }] },
+        showArrows: { type: 'radio', label: '화살표', options: [{ label: '표시', value: true }, { label: '숨김', value: false }] },
+        showDots: { type: 'radio', label: '점 표시', options: [{ label: '표시', value: true }, { label: '숨김', value: false }] },
+        autoplayMs: { type: 'number', label: '자동 재생 간격(ms, 0=끔)' },
+        ...commonFields,
+      },
+      defaultProps: {
+        ...commonDefaults,
+        slidesPerView: 3,
+        gap: 24,
+        loop: true,
+        showArrows: true,
+        showDots: true,
+        autoplayMs: 0,
+        name: 'Carousel',
+        style: { width: '100%', padding: { top: 8, right: 24, bottom: 8, left: 24 } },
+      },
+      render: (props) => <CarouselBlock {...props} />,
+    },
+
     /* ---- 비즈니스 ---- */
     Form: {
       label: '문의 폼',
@@ -427,7 +477,7 @@ export const puckConfig: Config<KsohoBlocks, KsohoRootProps> = {
       background: { type: 'text', label: '페이지 배경색' },
       fontFamily: { type: 'text', label: '기본 폰트' },
     },
-    defaultProps: { background: '#ffffff', fontFamily: "'Pretendard', system-ui, sans-serif" },
+    defaultProps: { background: '#ffffff', fontFamily: 'var(--font-noto-kr), sans-serif' },
     render: ({ children, background, fontFamily }) => (
       <div style={{ background, fontFamily, minHeight: '100%' }}>{children}</div>
     ),

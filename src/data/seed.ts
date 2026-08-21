@@ -20,7 +20,7 @@ function starterContent(title: string, subtitle: string, navLabel: string): Puck
   const canvasId = bid('canvas');
 
   return {
-    root: { props: { background: '#ffffff', fontFamily: "'Pretendard', system-ui, sans-serif" } },
+    root: { props: { background: '#ffffff', fontFamily: 'var(--font-noto-kr), sans-serif' } },
     content: [
       { type: 'Section', props: { id: heroId } },
       { type: 'Section', props: { id: bodyId } },

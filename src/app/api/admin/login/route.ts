@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { SESSION_COOKIE, SESSION_TTL_MS, createSessionToken, isAuthConfigured, verifyPassword } from '@/lib/server/auth';
+import { loginSchema } from '@/lib/schemas';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,8 +30,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: '시도 횟수를 초과했습니다. 잠시 후 다시 시도하세요.' }, { status: 429 });
   }
 
-  const { password } = (await request.json().catch(() => ({}))) as { password?: string };
-  if (!password || !verifyPassword(password)) {
+  const parsed = loginSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success || !verifyPassword(parsed.data.password)) {
     return NextResponse.json({ error: '비밀번호가 올바르지 않습니다.' }, { status: 401 });
   }
 

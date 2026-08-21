@@ -1,109 +1,88 @@
+import DOMPurify from 'isomorphic-dompurify';
+
 /* =============================================================================
- * HTML Sanitizer — 저장 시점 정화
+ * HTML Sanitizer — 저장 시점 정화 (DOMPurify 기반)
  * -----------------------------------------------------------------------------
- * Text 블록은 인라인 서식을 위해 dangerouslySetInnerHTML 을 쓴다.
+ * Text/Embed 블록은 인라인 서식을 위해 dangerouslySetInnerHTML 을 쓴다.
  * 입력 경로가 (1) 관리자 입력 (2) 외부 번역 API 응답 두 개이므로,
- * 서버 저장 시점에 허용 목록 기반으로 한 번 정화한다.
- * 클라이언트 정화는 우회 가능하므로 신뢰 경계는 항상 서버다.
+ * 서버 저장 시점에 한 번 정화한다. 클라이언트 정화는 우회 가능하므로
+ * 신뢰 경계는 항상 서버다.
+ *
+ * 직접 만든 정규식 대신 DOMPurify 를 쓰는 이유: 실제 파서로 DOM 을 만들어
+ * 검사하므로 mXSS(파서 차이를 이용한 우회)까지 막는다. 정규식은 원리상
+ * 브라우저 파서와 해석이 어긋날 수 있다.
  * ========================================================================== */
 
-/** 인라인 서식에 필요한 최소 태그만 허용한다 */
-const ALLOWED_TAGS = new Set([
+/**
+ * 인라인 서식에 필요한 최소 태그만 허용한다.
+ * '#text' 를 반드시 포함해야 한다 — ALLOWED_TAGS 를 명시하면서 이를 빠뜨리면
+ * DOMPurify 가 텍스트 노드까지 제거해 본문이 통째로 사라진다.
+ */
+const ALLOWED_TAGS = [
+  '#text',
   'b', 'strong', 'i', 'em', 'u', 's', 'span', 'br', 'p', 'a',
-  'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'small', 'sup', 'sub',
-]);
+  'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+  'blockquote', 'small', 'sup', 'sub', 'mark', 'code',
+];
 
-const ALLOWED_ATTRS: Record<string, Set<string>> = {
-  a: new Set(['href', 'target', 'rel', 'style']),
-  span: new Set(['style']),
-  p: new Set(['style']),
-  '*': new Set(['style']),
-};
+const ALLOWED_ATTR = ['href', 'target', 'rel', 'style', 'class'];
 
-/** style 속성 안에서 허용할 CSS 속성 — url()/expression() 차단 */
+/** style 속성에서 허용할 CSS 속성 */
 const ALLOWED_CSS = new Set([
   'color', 'background-color', 'font-size', 'font-weight', 'font-style',
   'text-decoration', 'text-align', 'letter-spacing', 'line-height',
 ]);
 
-function sanitizeStyle(value: string): string {
+/**
+ * style 속성 필터.
+ * DOMPurify 에는 CSS 속성 허용목록 옵션이 없으므로 훅으로 직접 처리한다.
+ * url()/expression() 은 값 안에 스크립트를 숨길 수 있어 통째로 버린다.
+ */
+function sanitizeStyleAttribute(value: string): string {
   return value
     .split(';')
     .map((decl) => decl.trim())
     .filter(Boolean)
     .filter((decl) => {
-      const [prop, ...rest] = decl.split(':');
-      const val = rest.join(':').trim().toLowerCase();
-      if (!ALLOWED_CSS.has(prop.trim().toLowerCase())) return false;
-      // url(), expression(), javascript: 등 실행 가능한 값 차단
-      return !/url\s*\(|expression\s*\(|javascript:|@import/i.test(val);
+      const idx = decl.indexOf(':');
+      if (idx < 0) return false;
+      const prop = decl.slice(0, idx).trim().toLowerCase();
+      const val = decl.slice(idx + 1).trim().toLowerCase();
+      if (!ALLOWED_CSS.has(prop)) return false;
+      return !/url\s*\(|expression\s*\(|javascript:|@import|\\/.test(val);
     })
     .join('; ');
 }
 
-function sanitizeHref(value: string): string | null {
-  const v = value.trim();
-  // 상대 경로, http(s), mailto, tel 만 허용 — javascript:/data: 차단
-  if (/^(https?:|mailto:|tel:)/i.test(v)) return v;
-  if (/^[/#]/.test(v)) return v;
-  return null;
+/* 훅은 전역이므로 모듈 로드 시 한 번만 등록한다 */
+let hookRegistered = false;
+function ensureHook(): void {
+  if (hookRegistered) return;
+  DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+    const el = node as unknown as Element;
+    if (typeof el.getAttribute !== 'function' || !el.hasAttribute?.('style')) return;
+    const safe = sanitizeStyleAttribute(el.getAttribute('style') ?? '');
+    if (safe) el.setAttribute('style', safe);
+    else el.removeAttribute('style');
+  });
+  hookRegistered = true;
 }
 
-/**
- * 정규식 기반 정화기 — 의존성 없이 동작한다.
- * DOM 이 있는 환경(브라우저/jsdom)이라면 DOMPurify 로 교체하는 것이 더 안전하다.
- * 여기서는 허용 목록이 매우 좁아(인라인 서식만) 실용적으로 충분하다.
- */
+/** 공통 설정. USE_PROFILES 는 절대 함께 쓰지 않는다 —
+ *  프로필이 ALLOWED_TAGS 를 덮어써 form/input 같은 태그가 통과한다. */
+const BASE_CONFIG = {
+  // javascript:, data: 등 실행 가능한 스킴 차단 (상대경로·http(s)·mailto·tel 만 허용)
+  ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel):|[/#])/i,
+  ALLOW_DATA_ATTR: false,
+  ALLOW_ARIA_ATTR: false,
+  // 태그를 지울 때 내용도 함께 지운다 (<script>alert()</script> → 텍스트 잔존 방지)
+  KEEP_CONTENT: false,
+} as const;
+
 export function sanitizeHtml(input: string): string {
   if (!input) return '';
-
-  let out = input
-    /* 실행 가능한 요소는 내용까지 통째로 제거 */
-    .replace(/<\s*(script|style|iframe|object|embed|form|link|meta)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '')
-    .replace(/<\s*(script|style|iframe|object|embed|form|link|meta)[^>]*\/?>/gi, '')
-    /* HTML 주석 안에 숨긴 페이로드 제거 */
-    .replace(/<!--[\s\S]*?-->/g, '');
-
-  out = out.replace(/<\s*(\/?)([a-zA-Z][a-zA-Z0-9-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/g, (match, closing, rawTag, rawAttrs) => {
-    const tag = String(rawTag).toLowerCase();
-    if (!ALLOWED_TAGS.has(tag)) return '';
-    if (closing) return `</${tag}>`;
-
-    const attrs: string[] = [];
-    const attrPattern = /([a-zA-Z-]+)\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/g;
-    let m: RegExpExecArray | null;
-    while ((m = attrPattern.exec(String(rawAttrs))) !== null) {
-      const name = m[1].toLowerCase();
-      const value = m[3] ?? m[4] ?? m[5] ?? '';
-      // on* 이벤트 핸들러는 무조건 제거
-      if (name.startsWith('on')) continue;
-      const allowed = ALLOWED_ATTRS[tag] ?? ALLOWED_ATTRS['*'];
-      if (!allowed.has(name)) continue;
-
-      if (name === 'style') {
-        const safe = sanitizeStyle(value);
-        if (safe) attrs.push(`style="${escapeAttr(safe)}"`);
-      } else if (name === 'href') {
-        const safe = sanitizeHref(value);
-        if (safe) attrs.push(`href="${escapeAttr(safe)}"`);
-      } else if (name === 'target') {
-        attrs.push(`target="${value === '_blank' ? '_blank' : '_self'}"`);
-      } else if (name === 'rel') {
-        attrs.push(`rel="${escapeAttr(value)}"`);
-      }
-    }
-    // 새 창 링크에는 항상 noopener 를 붙인다 (reverse tabnabbing 방지)
-    if (tag === 'a' && attrs.some((a) => a.startsWith('target="_blank"')) && !attrs.some((a) => a.startsWith('rel='))) {
-      attrs.push('rel="noopener noreferrer"');
-    }
-    return `<${tag}${attrs.length ? ' ' + attrs.join(' ') : ''}>`;
-  });
-
-  return out;
-}
-
-function escapeAttr(v: string): string {
-  return v.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  ensureHook();
+  return DOMPurify.sanitize(input, { ...BASE_CONFIG, ALLOWED_TAGS, ALLOWED_ATTR });
 }
 
 /** Embed 블록용 — iframe 은 허용하되 출처를 화이트리스트로 제한한다 */
@@ -114,10 +93,18 @@ const EMBED_HOST_ALLOWLIST = [
 
 export function sanitizeEmbedHtml(input: string): string {
   if (!input) return '';
-  // iframe 은 src 호스트가 허용 목록에 있을 때만 남긴다
-  const withCheckedFrames = input.replace(/<iframe([^>]*)>([\s\S]*?)<\/iframe>|<iframe([^>]*)\/?>/gi, (match, attrsA, _inner, attrsB) => {
-    const attrs = String(attrsA ?? attrsB ?? '');
-    const src = /src\s*=\s*("([^"]*)"|'([^']*)')/i.exec(attrs);
+
+  ensureHook();
+  const cleaned = DOMPurify.sanitize(input, {
+    ...BASE_CONFIG,
+    ALLOWED_TAGS: [...ALLOWED_TAGS, 'iframe', 'div', 'figure', 'figcaption'],
+    ALLOWED_ATTR: [...ALLOWED_ATTR, 'src', 'width', 'height', 'allow', 'allowfullscreen', 'title', 'loading', 'frameborder'],
+    ALLOWED_URI_REGEXP: /^(?:https?:|[/#])/i,
+  });
+
+  // DOMPurify 는 iframe 태그만 허용할 뿐 출처는 모른다 — 호스트 검사는 우리가 한다
+  return cleaned.replace(/<iframe\b[^>]*>(?:[\s\S]*?<\/iframe>)?/gi, (match) => {
+    const src = /\bsrc\s*=\s*("([^"]*)"|'([^']*)')/i.exec(match);
     const url = src?.[2] ?? src?.[3];
     if (!url) return '';
     try {
@@ -127,13 +114,4 @@ export function sanitizeEmbedHtml(input: string): string {
       return '';
     }
   });
-
-  // iframe 을 제외한 나머지는 일반 규칙으로 정화하고, 검증된 iframe 을 되돌린다
-  const frames: string[] = [];
-  const stashed = withCheckedFrames.replace(/<iframe[\s\S]*?(<\/iframe>|\/>)/gi, (m) => {
-    frames.push(m);
-    return `__KSOHO_FRAME_${frames.length - 1}__`;
-  });
-  const cleaned = sanitizeHtml(stashed);
-  return cleaned.replace(/__KSOHO_FRAME_(\d+)__/g, (_m, i) => frames[Number(i)] ?? '');
 }

@@ -2,13 +2,11 @@ import { NextResponse } from 'next/server';
 import { inquiryStorage, StorageReadOnlyError } from '@/lib/server/storage';
 import { assertAdmin } from '@/lib/server/auth';
 import { getPageByPath } from '@/lib/server/pageStore';
-import { isLocale } from '@/lib/i18n';
+import { formatZodError, inquiryRequestSchema } from '@/lib/schemas';
+import type { LocaleCode } from '@/types/schema';
 import type { InquiryRecord } from '@/lib/server/storage/types';
 
 export const dynamic = 'force-dynamic';
-
-const MAX_FIELDS = 25;
-const MAX_VALUE_LENGTH = 4000;
 
 /** 제출 남용 방지 — 인스턴스 단위의 단순 창 제한 */
 const submissions = new Map<string, { count: number; first: number }>();
@@ -33,42 +31,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: '잠시 후 다시 시도해 주세요.' }, { status: 429 });
   }
 
-  const body = (await request.json().catch(() => null)) as {
-    formName?: string;
-    locale?: string;
-    path?: string;
-    fields?: Record<string, unknown>;
-    utm?: Record<string, string>;
-  } | null;
-
-  if (!body?.fields || typeof body.fields !== 'object') {
-    return NextResponse.json({ error: '문의 내용이 비어 있습니다.' }, { status: 400 });
+  const parsed = inquiryRequestSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: formatZodError(parsed.error) }, { status: 400 });
   }
-
-  const entries = Object.entries(body.fields).slice(0, MAX_FIELDS);
-  if (!entries.length) {
-    return NextResponse.json({ error: '문의 내용이 비어 있습니다.' }, { status: 400 });
-  }
-
-  // 값은 전부 문자열로 정규화하고 길이를 제한한다 (저장소 오염 방지)
-  const fields: Record<string, string> = {};
-  for (const [key, value] of entries) {
-    if (typeof key !== 'string' || !key) continue;
-    fields[key.slice(0, 64)] = String(value ?? '').slice(0, MAX_VALUE_LENGTH);
-  }
-
-  const path = typeof body.path === 'string' ? body.path : '/';
+  const { formName, path, fields, utm } = parsed.data;
   const page = await getPageByPath(path).catch(() => null);
 
   const record: InquiryRecord = {
     id: `inq_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
     createdAt: new Date().toISOString(),
-    formName: (body.formName ?? 'inquiry').slice(0, 64),
+    formName,
     pageId: page?.id ?? 'unknown',
     path,
-    locale: isLocale(body.locale) ? body.locale : 'ko',
+    locale: parsed.data.locale as LocaleCode,
     fields,
-    utm: body.utm && Object.keys(body.utm).length ? body.utm : undefined,
+    utm: utm && Object.keys(utm).length ? utm : undefined,
+    // 국가는 클라이언트를 믿지 않고 엣지 헤더에서 읽는다
     country: request.headers.get('x-vercel-ip-country') ?? request.headers.get('cf-ipcountry'),
     status: 'new',
   };
