@@ -177,6 +177,20 @@ export function persistLocale(locale: LocaleCode): void {
   document.cookie = `${LOCALE_COOKIE}=${locale}; path=/; max-age=31536000; samesite=lax`;
 }
 
+/**
+ * 현재 주소의 ?lang= 을 주어진 언어로 맞춘 상대 URL 을 만든다.
+ * 서버가 ?lang= 을 쿠키보다 우선하므로, 스위처가 URL 을 갱신하지 않으면
+ * /x?lang=en 으로 들어온 방문자의 한국어 선택이 새로고침에서 되돌아간다.
+ */
+export function withLocaleParam(url: string, locale: LocaleCode): string {
+  // 상대 주소도 파싱하기 위한 더미 origin — 결과에는 남지 않는다
+  const u = new URL(url, 'http://localhost');
+  u.searchParams.set('lang', locale);
+  // 같은 뜻의 별칭이 남아 있으면 어느 쪽이 이겼는지 읽는 사람이 알 수 없다
+  u.searchParams.delete('locale');
+  return `${u.pathname}${u.search}${u.hash}`;
+}
+
 /** URL 에서 ?lang= 또는 /{locale}/ 접두사를 읽는다 */
 export function localeFromSearch(search: string, supported: LocaleCode[] = LOCALE_ORDER): LocaleCode | null {
   const params = new URLSearchParams(search);

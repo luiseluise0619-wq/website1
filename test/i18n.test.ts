@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   fallbackChain, hashText, localeFromSearch, parseAcceptLanguage, resolutionOf,
-  setLocalized, t, translationState,
+  setLocalized, t, translationState, withLocaleParam,
 } from '@/lib/i18n';
 import type { LocalizedText } from '@/types/schema';
 
@@ -114,6 +114,31 @@ describe('localeFromSearch — ?lang= 처리', () => {
   it('허용 목록 밖의 언어는 거부한다', () => {
     expect(localeFromSearch('?lang=ja', ['ko', 'en'])).toBeNull();
     expect(localeFromSearch('?lang=en', ['ko', 'en'])).toBe('en');
+  });
+});
+
+describe('withLocaleParam — 스위처가 주소를 갱신한다', () => {
+  it('?lang= 이 없으면 붙인다', () => {
+    expect(withLocaleParam('/brand/beauty', 'en')).toBe('/brand/beauty?lang=en');
+  });
+
+  it('기존 ?lang= 은 덮어쓴다 (다른 파라미터는 유지)', () => {
+    expect(withLocaleParam('/x?lang=en&utm_source=ig', 'ko')).toBe('/x?lang=ko&utm_source=ig');
+  });
+
+  it('별칭 ?locale= 은 제거해 우선순위가 갈리지 않게 한다', () => {
+    expect(withLocaleParam('/x?locale=en', 'th')).toBe('/x?lang=th');
+  });
+
+  it('절대 주소를 넣어도 상대 경로만 돌려준다 (해시 유지)', () => {
+    expect(withLocaleParam('https://k-soho.com/global/japan?lang=ko#contact', 'ja')).toBe(
+      '/global/japan?lang=ja#contact',
+    );
+  });
+
+  it('결과를 localeFromSearch 로 되읽으면 같은 언어가 나온다', () => {
+    const url = withLocaleParam('/x?lang=en', 'vi');
+    expect(localeFromSearch(url.slice(url.indexOf('?')))).toBe('vi');
   });
 });
 

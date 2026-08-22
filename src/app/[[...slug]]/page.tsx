@@ -9,13 +9,27 @@ import type { LocaleCode } from '@/types/schema';
 /* =============================================================================
  * 동적 라우트 — 에디터로 만든 모든 페이지를 서빙한다.
  * /brand/beauty, /global/thailand, /business/buyer-inquiry … 전부 이 파일 하나가 처리.
+ *
+ * 주의: resolveLocale 이 cookies()/headers() 를 읽으므로 이 라우트는 요청마다
+ * 렌더된다. generateStaticParams 는 경로 목록을 알려줄 뿐 정적 생성을 만들지
+ * 않는다. 방문자마다 언어가 달라야 하므로 의도한 동작이다.
  * ========================================================================== */
 
 interface Params {
   params: { slug?: string[] };
   /* hreflang 이 ?lang= 주소를 알리므로 서버도 이 값을 읽어야 한다.
-     읽는 순간 이 라우트는 요청마다 렌더된다(정적 생성 해제). */
-  searchParams?: { lang?: string };
+     Next 는 같은 키가 반복되면 배열로 넘기므로 두 형태를 모두 받는다. */
+  searchParams?: { lang?: string | string[]; locale?: string | string[] };
+}
+
+/** 반복 파라미터(?lang=en&lang=ko)는 첫 값만 쓴다 */
+function firstParam(v?: string | string[]): string | undefined {
+  return Array.isArray(v) ? v[0] : v;
+}
+
+/** 클라이언트(localeFromSearch)와 같은 키를 인정해야 동작이 어긋나지 않는다 */
+function langOf(searchParams?: Params['searchParams']): string | undefined {
+  return firstParam(searchParams?.lang) ?? firstParam(searchParams?.locale);
 }
 
 function pathFromSlug(slug?: string[]): string {
@@ -43,7 +57,8 @@ export async function generateMetadata({ params, searchParams }: Params): Promis
   const page = await getPageByPath(pathFromSlug(params.slug));
   if (!page) return { title: 'K-SOHO GLOBAL' };
 
-  const locale = resolveLocale(page.enabledLocales, searchParams?.lang);
+  const requested = langOf(searchParams);
+  const locale = resolveLocale(page.enabledLocales, requested);
   const title = t(page.seo.title, locale, page.sourceLocale) || page.title;
   const description = t(page.seo.description, locale, page.sourceLocale);
 
@@ -56,7 +71,12 @@ export async function generateMetadata({ params, searchParams }: Params): Promis
     title,
     description,
     keywords: page.seo.keywords?.[locale],
-    alternates: { canonical: page.seo.canonical ?? page.path, languages },
+    alternates: {
+      /* 각 언어 변형은 자기 자신을 가리켜야 한다. 모두 쿼리 없는 주소를
+         canonical 로 지목하면 검색엔진이 중복으로 보고 hreflang 집합을 버린다. */
+      canonical: page.seo.canonical ?? (requested ? `${page.path}?lang=${locale}` : page.path),
+      languages,
+    },
     robots: page.seo.noindex ? { index: false, follow: false } : undefined,
     openGraph: {
       title: t(page.seo.ogTitle, locale, page.sourceLocale) || title,
@@ -73,6 +93,6 @@ export default async function DynamicPage({ params, searchParams }: Params) {
   // 초안/보관 페이지는 공개 사이트에 노출하지 않는다
   if (!page || page.status !== 'published') notFound();
 
-  const locale = resolveLocale(page.enabledLocales, searchParams?.lang);
+  const locale = resolveLocale(page.enabledLocales, langOf(searchParams));
   return <PageRenderer page={page} initialLocale={locale} />;
 }

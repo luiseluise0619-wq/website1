@@ -6,7 +6,7 @@ import { puckConfig } from '@/puck/config';
 import { RenderCtx } from '@/puck/blocks/shared';
 import { SiteNav } from './SiteNav';
 import { useCanvasAnalytics } from '@/hooks/useCanvasAnalytics';
-import { DEFAULT_LOCALE, LOCALES, detectClientLocale, persistLocale, t } from '@/lib/i18n';
+import { DEFAULT_LOCALE, LOCALES, detectClientLocale, localeFromSearch, persistLocale, t, withLocaleParam } from '@/lib/i18n';
 import type { Data } from '@puckeditor/core';
 import type { LocaleCode, PageDocument } from '@/types/schema';
 
@@ -56,8 +56,20 @@ export function PageRenderer({ page, initialLocale, chrome = true, analytics = t
   const handleLocaleChange = (next: LocaleCode) => {
     tracker.trackLocaleChange(locale, next, 'switcher');
     persistLocale(next);
+    /* 쿠키만으로는 부족하다: 서버가 ?lang= 을 쿠키보다 먼저 보므로
+       ?lang=en 으로 들어온 방문자가 한국어를 골라도 새로고침하면 영어로 돌아간다.
+       replaceState 라 재요청 없이 주소만 현재 언어와 맞춘다. */
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(window.history.state, '', withLocaleParam(window.location.href, next));
+    }
     setLocale(next);
   };
+
+  /* ?lang= 로 들어온 방문자의 언어를 기억한다. 저장하지 않으면 링크를 타고
+     다음 페이지로 넘어가는 순간(쿼리가 사라지므로) 한국어로 되돌아간다. */
+  React.useEffect(() => {
+    if (localeFromSearch(window.location.search, page.enabledLocales)) persistLocale(locale);
+  }, [locale, page.enabledLocales]);
 
   /* <html lang> 은 렌더 이후에 동기화한다. 핸들러 안에서 직접 쓰면
      이어지는 리렌더가 레이아웃의 초기값으로 되돌려 버린다. */

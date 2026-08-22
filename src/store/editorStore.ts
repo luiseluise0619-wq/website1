@@ -3,7 +3,7 @@
 import { create } from 'zustand';
 import { newPageId, normalizePath } from '@/lib/id';
 import { setLocalized, DEFAULT_LOCALE } from '@/lib/i18n';
-import { getTemplate } from '@/data/templates';
+import { getTemplate, templateSourceLocale, titleText } from '@/data/templates';
 import type {
   LocaleCode,
   PageDocument,
@@ -134,18 +134,19 @@ export const useEditorStore = create<EditorStore>((set, get) => {
       const id = newPageId();
       const now = new Date().toISOString();
       const locale = get().editingLocale;
+      const template = templateId ? getTemplate(templateId) : null;
+      /* 템플릿 문구가 쓰인 언어가 곧 이 페이지의 번역 원문이다 (templateSourceLocale 주석 참고) */
+      const source = template ? templateSourceLocale(template, locale) : locale;
       const page: PageDocument = {
         id,
         path: normalizePath(path),
         title,
         navId,
         status: 'draft',
-        seo: { title: { [locale]: title } },
-        content: templateId
-          ? getTemplate(templateId).build({ title, locale })
-          : emptyPuckData(),
+        seo: { title: titleText(title, locale, source) },
+        content: template ? template.build({ title, locale }) : emptyPuckData(),
         canvasWidth: 1440,
-        sourceLocale: locale,
+        sourceLocale: source,
         createdAt: now,
         updatedAt: now,
         revision: 1,
@@ -155,11 +156,17 @@ export const useEditorStore = create<EditorStore>((set, get) => {
     },
 
     applyTemplate: (pageId, templateId) =>
-      patchPage(pageId, (p) => ({
-        ...p,
-        content: getTemplate(templateId).build({ title: p.title, locale: p.sourceLocale }),
-        revision: p.revision + 1,
-      })),
+      patchPage(pageId, (p) => {
+        const template = getTemplate(templateId);
+        const locale = get().editingLocale;
+        return {
+          ...p,
+          content: template.build({ title: p.title, locale }),
+          /* 본문을 통째로 갈아끼우므로 원문 언어도 새 문구의 언어를 따라간다 */
+          sourceLocale: templateSourceLocale(template, locale),
+          revision: p.revision + 1,
+        };
+      }),
 
     updatePageMeta: (pageId, patch) =>
       patchPage(pageId, (p) => ({ ...p, ...patch, ...(patch.path ? { path: normalizePath(patch.path) } : {}) })),

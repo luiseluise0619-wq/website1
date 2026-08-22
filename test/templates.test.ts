@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PAGE_TEMPLATES, getTemplate, suggestTemplate } from '@/data/templates';
+import { PAGE_TEMPLATES, getTemplate, suggestTemplate, templateSourceLocale, titleText } from '@/data/templates';
 import { collectLocalizedFields, isLocalizedText } from '@/lib/translate/walk';
 import { t } from '@/lib/i18n';
 import type { PuckBlock } from '@/types/schema';
@@ -89,5 +89,42 @@ describe('템플릿 선택', () => {
     expect(suggestTemplate(undefined).id).toBe(PAGE_TEMPLATES[0].id);
     expect(suggestTemplate('없는섹션').id).toBe(PAGE_TEMPLATES[0].id);
     expect(getTemplate('없는템플릿').id).toBe(PAGE_TEMPLATES[0].id);
+  });
+});
+
+/* -----------------------------------------------------------------------------
+ * 편집 언어가 한/영이 아닐 때 (태국어 담당자가 새 페이지를 만드는 경우)
+ * 템플릿 문구는 여전히 한국어다. 원문 언어를 편집 언어로 잡아 버리면 번역
+ * 원문이 전부 비어 커버리지 0 / 자동 번역 무동작이 된다.
+ * -------------------------------------------------------------------------- */
+describe('원문 언어 결정', () => {
+  const content = getTemplate('brand-grid');
+
+  it('템플릿이 쓰는 언어면 편집 언어를 그대로 원문으로 삼는다', () => {
+    expect(templateSourceLocale(content, 'ko')).toBe('ko');
+    expect(templateSourceLocale(content, 'en')).toBe('en');
+  });
+
+  it('템플릿이 쓰지 않는 언어면 문구의 언어(ko)가 원문이 된다', () => {
+    expect(templateSourceLocale(content, 'th')).toBe('ko');
+    expect(templateSourceLocale(content, 'vi')).toBe('ko');
+  });
+
+  it('빈 페이지는 문구가 없으므로 편집 언어가 그대로 원문이다', () => {
+    expect(templateSourceLocale(getTemplate('blank'), 'th')).toBe('th');
+  });
+
+  it('태국어로 만들어도 번역 대상 필드가 잡힌다', () => {
+    const data = content.build({ title: 'ทดสอบ', locale: 'th' });
+    const source = templateSourceLocale(content, 'th');
+    expect(collectLocalizedFields(data, source).length).toBeGreaterThan(5);
+  });
+
+  it('입력한 제목은 원문·편집 언어 양쪽에 들어간다', () => {
+    const data = content.build({ title: 'ทดสอบ', locale: 'th' });
+    const hero = allBlocks(data).find((b) => b.props?.trackingId === 'hero-title');
+    expect(hero?.props.html).toEqual({ ko: 'ทดสอบ', th: 'ทดสอบ' });
+    /* 한국어 편집이면 슬롯이 하나뿐 — 기존 동작 그대로 */
+    expect(titleText('테스트', 'ko', 'ko')).toEqual({ ko: '테스트' });
   });
 });

@@ -16,7 +16,29 @@ export interface PageTemplate {
   description: string;
   /** 어떤 IA 섹션에 어울리는지 — 페이지 생성 시 기본값 추천에 쓴다 */
   suggestedFor?: string[];
+  /** 이 템플릿의 문구가 실제로 쓰여 있는 언어. 첫 번째가 번역 원문이 된다. */
+  copyLocales?: LocaleCode[];
   build: (input: { title: string; locale: LocaleCode }) => PuckPageData;
+}
+
+/** 템플릿 문구는 한국어로 쓰고 영어를 함께 담는다 */
+const COPY_LOCALES: LocaleCode[] = ['ko', 'en'];
+
+/**
+ * 이 템플릿으로 만든 페이지의 원문 언어.
+ * 태국어로 편집을 시작해도 템플릿 문구는 한국어이므로, 원문을 'th' 로 잡으면
+ * 번역 원문이 전부 빈 문자열이 되어 커버리지가 0 이 되고 자동 번역이 할 일을
+ * 찾지 못한다. 그래서 템플릿이 쓰지 않는 언어면 문구의 언어를 원문으로 삼는다.
+ */
+export function templateSourceLocale(template: PageTemplate, editing: LocaleCode): LocaleCode {
+  const copy = template.copyLocales;
+  if (!copy?.length || copy.includes(editing)) return editing;
+  return copy[0];
+}
+
+/** 사용자가 입력한 제목 — 원문 슬롯과 편집 언어 슬롯 양쪽에 넣어야 번역 대상이 된다 */
+export function titleText(title: string, locale: LocaleCode, sourceLocale: LocaleCode): LocalizedText {
+  return sourceLocale === locale ? { [locale]: title } : { [sourceLocale]: title, [locale]: title };
 }
 
 /** 페이지 단위 id 생성기 */
@@ -32,7 +54,18 @@ const loc = (ko: string, en?: string): LocalizedText => (en ? { ko, en } : { ko 
 interface Ctx {
   id: () => string;
   title: string;
+  /** 편집자가 지금 보고 있는 언어 — 사용자가 입력한 제목이 이 언어로 들어온다 */
   locale: LocaleCode;
+  /** 템플릿 문구의 언어 (= 번역 원문) */
+  sourceLocale: LocaleCode;
+  /** 제목을 원문·편집 언어 양쪽에 담은 값 */
+  title$: LocalizedText;
+}
+
+function makeCtx(title: string, locale: LocaleCode, copyLocales?: LocaleCode[]): Ctx {
+  const copy = copyLocales ?? COPY_LOCALES;
+  const sourceLocale = copy.includes(locale) ? locale : copy[0];
+  return { id: makeIds('el'), title, locale, sourceLocale, title$: titleText(title, locale, sourceLocale) };
 }
 
 /** 자유 배치 히어로 — 큰 제목·부제·CTA·장식 도형 */
@@ -54,7 +87,7 @@ function heroCanvas(
           type: 'Text',
           props: {
             id: ctx.id(), name: 'Hero 제목', trackingId: 'hero-title',
-            html: loc(ctx.title), tag: 'h1',
+            html: ctx.title$, tag: 'h1',
             placement: { x: 64, y: 170, z: 2 },
             style: { width: 760, color: fg, typography: { fontSize: 60, fontWeight: 800, lineHeight: 1.15, letterSpacing: -1.5 } },
           },
@@ -173,8 +206,9 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
     id: 'hero-intro',
     name: '히어로 + 소개',
     description: '자유 배치 히어로와 본문 한 단락. 가장 단순한 시작점.',
+    copyLocales: COPY_LOCALES,
     build: ({ title, locale }) => {
-      const ctx: Ctx = { id: makeIds('el'), title, locale };
+      const ctx = makeCtx(title, locale);
       const hero = heroCanvas(ctx, {
         subtitle: loc(`${title} 페이지의 히어로 문구를 입력하세요.`, `Write the hero copy for ${title}.`),
         cta: loc('자세히 보기', 'Learn more'),
@@ -207,8 +241,9 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
     name: '브랜드 카드 3열',
     description: '히어로 + 이미지 카드 3개 그리드. BRAND·MARKET 카테고리 소개용.',
     suggestedFor: ['brand', 'market'],
+    copyLocales: COPY_LOCALES,
     build: ({ title, locale }) => {
-      const ctx: Ctx = { id: makeIds('el'), title, locale };
+      const ctx = makeCtx(title, locale);
       const hero = heroCanvas(ctx, {
         subtitle: loc('대한민국 브랜드를 세계 시장으로.', 'Korean brands, taken to the world.'),
         cta: loc('브랜드 보기', 'View brands'),
@@ -252,8 +287,9 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
     name: '제품 캐러셀',
     description: '히어로 + 좌우로 넘기는 제품 슬라이더. BUY 카테고리용.',
     suggestedFor: ['buy'],
+    copyLocales: COPY_LOCALES,
     build: ({ title, locale }) => {
-      const ctx: Ctx = { id: makeIds('el'), title, locale };
+      const ctx = makeCtx(title, locale);
       const hero = heroCanvas(ctx, {
         subtitle: loc('전 세계에서 만나는 대한민국 브랜드.', 'Korean brands, available worldwide.'),
         cta: loc('제품 보기', 'View products'),
@@ -298,8 +334,9 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
     name: '스토리 (이미지 + 글)',
     description: '큰 이미지와 긴 본문. CEO STORY·제조 이야기용.',
     suggestedFor: ['ceo-story'],
+    copyLocales: COPY_LOCALES,
     build: ({ title, locale }) => {
-      const ctx: Ctx = { id: makeIds('el'), title, locale };
+      const ctx = makeCtx(title, locale);
       const hero = heroCanvas(ctx, {
         subtitle: loc('브랜드가 만들어지기까지의 이야기.', 'How the brand came to be.'),
         cta: loc('이야기 읽기', 'Read the story'),
@@ -319,7 +356,7 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
           [`${section}:content`]: [
             ...heading(
               ctx,
-              loc(title),
+              ctx.title$,
               loc(
                 '창업의 계기, 제품에 담은 철학, 해외 진출에서 겪은 어려움을 이야기로 풀어 주세요.',
                 'Tell the story: why the business started, the thinking behind the product, and what going overseas took.',
@@ -331,7 +368,7 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
             {
               type: 'Image',
               props: {
-                id: ctx.id(), name: '스토리 이미지', src: PHOTO.factory, alt: loc(title), objectFit: 'cover',
+                id: ctx.id(), name: '스토리 이미지', src: PHOTO.factory, alt: ctx.title$, objectFit: 'cover',
                 style: { width: 460, height: 340, border: { radius: 16 }, overflow: 'hidden', flexItem: { grow: 0, shrink: 0, basis: 460 } },
               },
             },
@@ -358,8 +395,9 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
     name: '문의 폼',
     description: '히어로 + 문의 접수 폼. BUSINESS(바이어·유통·제휴) 페이지용.',
     suggestedFor: ['business'],
+    copyLocales: COPY_LOCALES,
     build: ({ title, locale }) => {
-      const ctx: Ctx = { id: makeIds('el'), title, locale };
+      const ctx = makeCtx(title, locale);
       const hero = heroCanvas(ctx, {
         subtitle: loc('문의를 남겨 주시면 확인 후 연락드리겠습니다.', 'Leave an inquiry and we will get back to you.'),
         cta: loc('문의하기', 'Send inquiry'),
@@ -377,7 +415,7 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
           [`${section}:content`]: [
             ...heading(
               ctx,
-              loc(title),
+              ctx.title$,
               loc(
                 '아래 항목을 채워 보내 주세요. 접수 내역은 관리자 화면에서 확인할 수 있습니다.',
                 'Fill in the fields below. Submissions appear in the admin screen.',
@@ -416,8 +454,9 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
     name: '비디오 갤러리',
     description: '영상 3개 그리드. VIDEO(K-SOHO TV·인터뷰·Shorts)용.',
     suggestedFor: ['video'],
+    copyLocales: COPY_LOCALES,
     build: ({ title, locale }) => {
-      const ctx: Ctx = { id: makeIds('el'), title, locale };
+      const ctx = makeCtx(title, locale);
       const hero = heroCanvas(ctx, {
         subtitle: loc('영상으로 만나는 K-SOHO GLOBAL.', 'K-SOHO GLOBAL, on video.'),
         cta: loc('영상 보기', 'Watch'),
@@ -436,7 +475,7 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
           [`${section}:content`]: [
             ...heading(
               ctx,
-              loc(title),
+              ctx.title$,
               loc(
                 '각 영상 블록의 우측 패널에서 YouTube 주소나 영상 ID 를 붙여 넣으세요. Shorts 도 지원합니다.',
                 'Paste a YouTube URL or video ID into each video block. Shorts are supported.',
@@ -461,8 +500,8 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
     id: 'blank',
     name: '빈 페이지',
     description: '섹션 하나만. 처음부터 직접 구성할 때.',
-    build: () => {
-      const ctx: Ctx = { id: makeIds('el'), title: '', locale: 'ko' };
+    build: ({ locale }) => {
+      const ctx = makeCtx('', locale, [locale]);
       const section = ctx.id();
       return {
         root: { props: ROOT_PROPS },

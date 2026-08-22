@@ -1,6 +1,9 @@
 import type { Metadata } from 'next';
+import { headers } from 'next/headers';
 import { fontVariables } from '@/lib/fonts';
 import { siteUrl } from '@/lib/siteUrl';
+import { DEFAULT_LOCALE, LOCALES, isLocale } from '@/lib/i18n';
+import { LOCALE_HEADER } from '@/middleware';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -13,8 +16,13 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  /* 미들웨어가 넣어 준 방문자 언어. 하드코딩하면 ?lang=en 페이지가
+     <html lang="ko"> 로 나가 스크린리더·번역기·검색엔진이 언어를 잘못 읽는다. */
+  const header = headers().get(LOCALE_HEADER);
+  const locale = isLocale(header) ? header : DEFAULT_LOCALE;
+
   return (
-    <html lang="ko" className={fontVariables}>
+    <html lang={LOCALES[locale].bcp47} className={fontVariables}>
       <body>{children}</body>
     </html>
   );
