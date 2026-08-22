@@ -374,6 +374,10 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
         const selector = getSelectorForId(selected.id);
         if (!selector) return;
         e.preventDefault();
+        /* Puck 도 같은 키에 자체 삭제를 붙여 둔다. 막지 않으면 두 번 지워진다 —
+           우리가 요소를 지운 뒤 인덱스가 당겨진 자리에서 Puck 이 한 번 더
+           지워, 방금 만든 텍스트 하나를 지웠는데 섹션이 통째로 날아간다. */
+        e.stopImmediatePropagation();
         dispatch({ type: 'remove', index: selector.index, zone: selector.zone });
         setPickedId(null);
         return;
@@ -384,6 +388,7 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
         const selector = getSelectorForId(selected.id);
         if (!selector) return;
         e.preventDefault();
+        e.stopImmediatePropagation();
         dispatch({ type: 'duplicate', sourceIndex: selector.index, sourceZone: selector.zone });
         return;
       }
@@ -401,8 +406,9 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
       });
     };
 
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    /* 캡처 단계로 받는다 — Puck 의 리스너보다 먼저 실행돼야 중복 삭제를 막을 수 있다 */
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, [selected, commit, dispatch, getSelectorForId, setPickedId]);
 
   /* 좌표를 containerRef 기준으로 계산하므로, 실제 DOM 도 그 컨테이너 안에 있어야
