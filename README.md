@@ -287,7 +287,7 @@ DeepL 은 **태국어·베트남어를 지원하지 않아** 해당 언어는 �
 ## 테스트
 
 ```bash
-npm test           # 213개 테스트
+npm test           # 215개 테스트
 npm run test:watch
 npm run a11y       # 실행 중인 사이트에 axe-core (WCAG 2.1 AA) — 위반 시 종료 코드 1
 ```
