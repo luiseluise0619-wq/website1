@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  fallbackChain, hashText, parseAcceptLanguage, resolutionOf,
+  fallbackChain, hashText, localeFromSearch, parseAcceptLanguage, resolutionOf,
   setLocalized, t, translationState,
 } from '@/lib/i18n';
 import type { LocalizedText } from '@/types/schema';
@@ -93,6 +93,27 @@ describe('parseAcceptLanguage', () => {
   it('지원하지 않는 언어만 있으면 null', () => {
     expect(parseAcceptLanguage('de-DE,fr')).toBeNull();
     expect(parseAcceptLanguage(null)).toBeNull();
+  });
+});
+
+describe('localeFromSearch — ?lang= 처리', () => {
+  /* hreflang 이 ?lang= 주소를 검색엔진에 알리므로, 그 주소가 실제로 해당 언어를
+     보여주지 않으면 약속이 깨진다. */
+  it('lang / locale 파라미터를 모두 인식한다', () => {
+    expect(localeFromSearch('?lang=en')).toBe('en');
+    expect(localeFromSearch('?locale=th')).toBe('th');
+    expect(localeFromSearch('?utm_source=x&lang=ja')).toBe('ja');
+  });
+
+  it('지원하지 않는 값은 무시한다', () => {
+    expect(localeFromSearch('?lang=de')).toBeNull();
+    expect(localeFromSearch('?lang=')).toBeNull();
+    expect(localeFromSearch('')).toBeNull();
+  });
+
+  it('허용 목록 밖의 언어는 거부한다', () => {
+    expect(localeFromSearch('?lang=ja', ['ko', 'en'])).toBeNull();
+    expect(localeFromSearch('?lang=en', ['ko', 'en'])).toBe('en');
   });
 });
 

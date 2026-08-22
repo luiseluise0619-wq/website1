@@ -13,15 +13,19 @@ import type { LocaleCode } from '@/types/schema';
 
 interface Params {
   params: { slug?: string[] };
+  /* hreflang 이 ?lang= 주소를 알리므로 서버도 이 값을 읽어야 한다.
+     읽는 순간 이 라우트는 요청마다 렌더된다(정적 생성 해제). */
+  searchParams?: { lang?: string };
 }
 
 function pathFromSlug(slug?: string[]): string {
   return slug?.length ? `/${slug.join('/')}` : '/';
 }
 
-/** 방문자 언어 결정: 쿠키(직접 선택) > Accept-Language > 기본 */
-function resolveLocale(enabled?: LocaleCode[]): LocaleCode {
+/** 방문자 언어 결정: ?lang= > 쿠키(직접 선택) > Accept-Language > 기본 */
+function resolveLocale(enabled?: LocaleCode[], langParam?: string): LocaleCode {
   const supported = enabled?.length ? enabled : LOCALE_ORDER;
+  if (isLocale(langParam) && supported.includes(langParam)) return langParam;
   const cookieLocale = cookies().get(LOCALE_COOKIE)?.value;
   if (isLocale(cookieLocale) && supported.includes(cookieLocale)) return cookieLocale;
   return parseAcceptLanguage(headers().get('accept-language'), supported) ?? DEFAULT_LOCALE;
@@ -35,11 +39,11 @@ export async function generateStaticParams() {
     .map((p) => ({ slug: p.path.replace(/^\//, '').split('/') }));
 }
 
-export async function generateMetadata({ params }: Params): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: Params): Promise<Metadata> {
   const page = await getPageByPath(pathFromSlug(params.slug));
   if (!page) return { title: 'K-SOHO GLOBAL' };
 
-  const locale = resolveLocale(page.enabledLocales);
+  const locale = resolveLocale(page.enabledLocales, searchParams?.lang);
   const title = t(page.seo.title, locale, page.sourceLocale) || page.title;
   const description = t(page.seo.description, locale, page.sourceLocale);
 
@@ -63,12 +67,12 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   };
 }
 
-export default async function DynamicPage({ params }: Params) {
+export default async function DynamicPage({ params, searchParams }: Params) {
   const page = await getPageByPath(pathFromSlug(params.slug));
 
   // 초안/보관 페이지는 공개 사이트에 노출하지 않는다
   if (!page || page.status !== 'published') notFound();
 
-  const locale = resolveLocale(page.enabledLocales);
+  const locale = resolveLocale(page.enabledLocales, searchParams?.lang);
   return <PageRenderer page={page} initialLocale={locale} />;
 }

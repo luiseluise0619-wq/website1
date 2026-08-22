@@ -149,8 +149,16 @@ export function parseAcceptLanguage(header: string | null | undefined, supported
 
 export const LOCALE_COOKIE = 'ksoho_locale';
 
-/** 클라이언트 측 감지: 저장된 선택 → navigator.languages → 기본 */
+/**
+ * 클라이언트 측 감지: URL(?lang=) → 저장된 선택 → navigator.languages → 기본.
+ * ?lang= 를 가장 앞에 두는 이유: hreflang 으로 그 주소를 검색엔진에 알리고 있어,
+ * 링크를 타고 들어온 사람에게 해당 언어가 보이지 않으면 약속이 깨진다.
+ */
 export function detectClientLocale(supported: LocaleCode[] = LOCALE_ORDER): LocaleCode {
+  if (typeof window !== 'undefined') {
+    const fromUrl = localeFromSearch(window.location.search, supported);
+    if (fromUrl) return fromUrl;
+  }
   if (typeof document !== 'undefined') {
     const cookie = document.cookie.split('; ').find((c) => c.startsWith(`${LOCALE_COOKIE}=`));
     const saved = cookie?.split('=')[1];

@@ -311,6 +311,18 @@ docker run -p 3000:3000 -e POSTGRES_URL="..." -e ADMIN_PASSWORD="..." k-soho-glo
 
 `DOCKER_BUILD=1` 일 때만 Next 의 standalone 출력을 켜므로 Vercel 배포와 간섭하지 않습니다.
 
+## 다국어 SEO
+
+- 방문자 언어 우선순위: **`?lang=` → 쿠키(직접 선택) → Accept-Language → 기본(ko)**
+- `?lang=` 은 서버 렌더에도 반영된다. hreflang 으로 그 주소를 검색엔진에 알리므로,
+  링크를 타고 들어온 사람과 크롤러 모두 해당 언어의 HTML 을 받아야 한다.
+- `canonical`·`hreflang`·`og:image` 는 절대 URL 이어야 한다.
+  루트 레이아웃의 `metadataBase` 가 페이지의 상대 경로를 승격시킨다.
+  (도메인은 `SITE_URL` → 호스팅 주입 도메인 순으로 런타임에 정해진다)
+
+> 쿼리 없는 주소는 정적으로 생성되고, `?lang=` 이 붙으면 그 요청만 서버에서
+> 렌더된다. 두 경로 모두 같은 로케일 해석 함수를 쓴다.
+
 ## 보안 주석
 
 - **이미지 최적화기 비활성** — 이미지 블록은 관리자가 임의 URL 을 넣을 수 있어야 해서

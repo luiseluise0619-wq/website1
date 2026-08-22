@@ -36,7 +36,10 @@ interface Ctx {
 }
 
 /** 자유 배치 히어로 — 큰 제목·부제·CTA·장식 도형 */
-function heroCanvas(ctx: Ctx, opts: { subtitle: string; cta: string; ctaTarget: string; dark?: boolean }) {
+function heroCanvas(
+  ctx: Ctx,
+  opts: { subtitle: LocalizedText; cta: LocalizedText; ctaTarget: string; dark?: boolean },
+) {
   const sectionId = ctx.id();
   const canvasId = ctx.id();
   const fg = opts.dark === false ? '#111827' : '#ffffff';
@@ -60,7 +63,7 @@ function heroCanvas(ctx: Ctx, opts: { subtitle: string; cta: string; ctaTarget: 
           type: 'Text',
           props: {
             id: ctx.id(), name: 'Hero 부제', trackingId: 'hero-sub',
-            html: loc(opts.subtitle), tag: 'p',
+            html: opts.subtitle, tag: 'p',
             placement: { x: 64, y: 296, z: 2 },
             style: { width: 560, color: sub, typography: { fontSize: 18, lineHeight: 1.7 } },
           },
@@ -69,7 +72,7 @@ function heroCanvas(ctx: Ctx, opts: { subtitle: string; cta: string; ctaTarget: 
           type: 'Button',
           props: {
             id: ctx.id(), name: 'Hero CTA', trackingId: 'hero-cta', conversionGoal: 'hero_cta',
-            label: loc(opts.cta), action: { type: 'scrollTo', value: opts.ctaTarget, target: '_self' },
+            label: opts.cta, action: { type: 'scrollTo', value: opts.ctaTarget, target: '_self' },
             placement: { x: 64, y: 396, z: 3 },
             style: {
               width: 200, height: 54, color: '#0d0f14', background: { color: '#ffffff' },
@@ -97,26 +100,31 @@ function heroCanvas(ctx: Ctx, opts: { subtitle: string; cta: string; ctaTarget: 
 }
 
 /** 제목 + 설명 한 쌍 */
-function heading(ctx: Ctx, text: string, body: string): PuckBlock[] {
+function heading(ctx: Ctx, text: LocalizedText, body: LocalizedText): PuckBlock[] {
   return [
     {
       type: 'Text',
       props: {
-        id: ctx.id(), name: '섹션 제목', html: loc(text), tag: 'h2',
+        id: ctx.id(), name: '섹션 제목', html: text, tag: 'h2',
         style: { color: '#111827', typography: { fontSize: 34, fontWeight: 700, lineHeight: 1.3 } },
       },
     },
     {
       type: 'Text',
       props: {
-        id: ctx.id(), name: '섹션 설명', html: loc(body), tag: 'p',
+        id: ctx.id(), name: '섹션 설명', html: body, tag: 'p',
         style: { maxWidth: 720, color: '#4b5563', typography: { fontSize: 17, lineHeight: 1.8 } },
       },
     },
   ];
 }
 
-function card(ctx: Ctx, title: string, body: string, image: string): { block: PuckBlock; zone: [string, PuckBlock[]] } {
+function card(
+  ctx: Ctx,
+  title: LocalizedText,
+  body: LocalizedText,
+  image: string,
+): { block: PuckBlock; zone: [string, PuckBlock[]] } {
   const id = ctx.id();
   return {
     block: { type: 'Container', props: { id } },
@@ -126,21 +134,21 @@ function card(ctx: Ctx, title: string, body: string, image: string): { block: Pu
         {
           type: 'Image',
           props: {
-            id: ctx.id(), name: '카드 이미지', src: image, alt: loc(title), objectFit: 'cover',
+            id: ctx.id(), name: '카드 이미지', src: image, alt: title, objectFit: 'cover',
             style: { width: '100%', height: 200, border: { radius: 12 }, overflow: 'hidden' },
           },
         },
         {
           type: 'Text',
           props: {
-            id: ctx.id(), name: '카드 제목', html: loc(title), tag: 'h3',
+            id: ctx.id(), name: '카드 제목', html: title, tag: 'h3',
             style: { color: '#111827', typography: { fontSize: 20, fontWeight: 700, lineHeight: 1.4 } },
           },
         },
         {
           type: 'Text',
           props: {
-            id: ctx.id(), name: '카드 본문', html: loc(body), tag: 'p',
+            id: ctx.id(), name: '카드 본문', html: body, tag: 'p',
             style: { color: '#6b7280', typography: { fontSize: 14, lineHeight: 1.7 } },
           },
         },
@@ -167,7 +175,11 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
     description: '자유 배치 히어로와 본문 한 단락. 가장 단순한 시작점.',
     build: ({ title, locale }) => {
       const ctx: Ctx = { id: makeIds('el'), title, locale };
-      const hero = heroCanvas(ctx, { subtitle: `${title} 페이지의 히어로 문구를 입력하세요.`, cta: '자세히 보기', ctaTarget: 'body' });
+      const hero = heroCanvas(ctx, {
+        subtitle: loc(`${title} 페이지의 히어로 문구를 입력하세요.`, `Write the hero copy for ${title}.`),
+        cta: loc('자세히 보기', 'Learn more'),
+        ctaTarget: 'body',
+      });
       const bodyId = ctx.id();
       return {
         root: { props: ROOT_PROPS },
@@ -177,7 +189,14 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
         ],
         zones: {
           ...hero.zones,
-          [`${bodyId}:content`]: heading(ctx, `${title} 소개`, 'K-SOHO GLOBAL은 대한민국 중소기업 브랜드의 해외 진출을 지원합니다. 이 문단을 클릭해 내용을 수정하고, 우측 패널에서 색상·폰트·여백을 자유롭게 조정하세요.'),
+          [`${bodyId}:content`]: heading(
+            ctx,
+            loc(`${title} 소개`, `About ${title}`),
+            loc(
+              'K-SOHO GLOBAL은 대한민국 중소기업 브랜드의 해외 진출을 지원합니다. 이 문단을 클릭해 내용을 수정하고, 우측 패널에서 색상·폰트·여백을 자유롭게 조정하세요.',
+              'K-SOHO GLOBAL helps Korean small businesses reach overseas markets. Click this paragraph to edit it, and adjust colours, fonts and spacing in the panel on the right.',
+            ),
+          ),
         },
       };
     },
@@ -190,13 +209,17 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
     suggestedFor: ['brand', 'market'],
     build: ({ title, locale }) => {
       const ctx: Ctx = { id: makeIds('el'), title, locale };
-      const hero = heroCanvas(ctx, { subtitle: '대한민국 브랜드를 세계 시장으로.', cta: '브랜드 보기', ctaTarget: 'grid' });
+      const hero = heroCanvas(ctx, {
+        subtitle: loc('대한민국 브랜드를 세계 시장으로.', 'Korean brands, taken to the world.'),
+        cta: loc('브랜드 보기', 'View brands'),
+        ctaTarget: 'grid',
+      });
       const gridSection = ctx.id();
       const gridId = ctx.id();
       const cards = [
-        card(ctx, 'K-BEAUTY', '화장품·스킨케어 브랜드', PHOTO.beauty),
-        card(ctx, 'K-FOOD', '식품·가공식품 브랜드', PHOTO.food),
-        card(ctx, 'K-LIVING', '생활용품·리빙 브랜드', PHOTO.living),
+        card(ctx, loc('K-BEAUTY'), loc('화장품·스킨케어 브랜드', 'Cosmetics and skincare'), PHOTO.beauty),
+        card(ctx, loc('K-FOOD'), loc('식품·가공식품 브랜드', 'Food and processed goods'), PHOTO.food),
+        card(ctx, loc('K-LIVING'), loc('생활용품·리빙 브랜드', 'Household and living goods'), PHOTO.living),
       ];
       return {
         root: { props: ROOT_PROPS },
@@ -207,7 +230,14 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
         zones: {
           ...hero.zones,
           [`${gridSection}:content`]: [
-            ...heading(ctx, `${title} 브랜드`, '카드를 클릭해 이미지와 문구를 바꾸세요. 카드를 더 넣으려면 컨테이너 안으로 블록을 끌어다 놓습니다.'),
+            ...heading(
+              ctx,
+              loc(`${title} 브랜드`, `${title} brands`),
+              loc(
+                '카드를 클릭해 이미지와 문구를 바꾸세요. 카드를 더 넣으려면 컨테이너 안으로 블록을 끌어다 놓습니다.',
+                'Click a card to change its image and text. Drag a block into the container to add more.',
+              ),
+            ),
             { type: 'Container', props: { id: gridId, layoutMode: 'grid', name: '카드 그리드', style: { width: '100%', grid: { columns: 3, gap: 24 } } } },
           ],
           [`${gridId}:items`]: cards.map((c) => c.block),
@@ -224,14 +254,18 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
     suggestedFor: ['buy'],
     build: ({ title, locale }) => {
       const ctx: Ctx = { id: makeIds('el'), title, locale };
-      const hero = heroCanvas(ctx, { subtitle: '전 세계에서 만나는 대한민국 브랜드.', cta: '제품 보기', ctaTarget: 'products' });
+      const hero = heroCanvas(ctx, {
+        subtitle: loc('전 세계에서 만나는 대한민국 브랜드.', 'Korean brands, available worldwide.'),
+        cta: loc('제품 보기', 'View products'),
+        ctaTarget: 'products',
+      });
       const section = ctx.id();
       const carouselId = ctx.id();
       const slides = [
-        card(ctx, '제품 1', '제품 설명을 입력하세요.', PHOTO.beauty),
-        card(ctx, '제품 2', '제품 설명을 입력하세요.', PHOTO.food),
-        card(ctx, '제품 3', '제품 설명을 입력하세요.', PHOTO.living),
-        card(ctx, '제품 4', '제품 설명을 입력하세요.', PHOTO.factory),
+        card(ctx, loc('제품 1', 'Product 1'), loc('제품 설명을 입력하세요.', 'Describe this product.'), PHOTO.beauty),
+        card(ctx, loc('제품 2', 'Product 2'), loc('제품 설명을 입력하세요.', 'Describe this product.'), PHOTO.food),
+        card(ctx, loc('제품 3', 'Product 3'), loc('제품 설명을 입력하세요.', 'Describe this product.'), PHOTO.living),
+        card(ctx, loc('제품 4', 'Product 4'), loc('제품 설명을 입력하세요.', 'Describe this product.'), PHOTO.factory),
       ];
       return {
         root: { props: ROOT_PROPS },
@@ -242,7 +276,14 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
         zones: {
           ...hero.zones,
           [`${section}:content`]: [
-            ...heading(ctx, '제품 보기', '슬라이드를 좌우로 넘겨 제품을 소개합니다. 우측 패널에서 한 화면에 보일 개수와 자동 재생을 조절하세요.'),
+            ...heading(
+              ctx,
+              loc('제품 보기', 'Products'),
+              loc(
+                '슬라이드를 좌우로 넘겨 제품을 소개합니다. 우측 패널에서 한 화면에 보일 개수와 자동 재생을 조절하세요.',
+                'Swipe through the slides to present products. Set how many show at once, and autoplay, in the panel on the right.',
+              ),
+            ),
             { type: 'Carousel', props: { id: carouselId, slidesPerView: 3, gap: 24, loop: true, showArrows: true, showDots: true, autoplayMs: 0, name: '제품 캐러셀', style: { width: '100%' } } },
           ],
           [`${carouselId}:slides`]: slides.map((s) => s.block),
@@ -259,7 +300,12 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
     suggestedFor: ['ceo-story'],
     build: ({ title, locale }) => {
       const ctx: Ctx = { id: makeIds('el'), title, locale };
-      const hero = heroCanvas(ctx, { subtitle: '브랜드가 만들어지기까지의 이야기.', cta: '이야기 읽기', ctaTarget: 'story', dark: true });
+      const hero = heroCanvas(ctx, {
+        subtitle: loc('브랜드가 만들어지기까지의 이야기.', 'How the brand came to be.'),
+        cta: loc('이야기 읽기', 'Read the story'),
+        ctaTarget: 'story',
+        dark: true,
+      });
       const section = ctx.id();
       const rowId = ctx.id();
       return {
@@ -271,7 +317,14 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
         zones: {
           ...hero.zones,
           [`${section}:content`]: [
-            ...heading(ctx, title, '창업의 계기, 제품에 담은 철학, 해외 진출에서 겪은 어려움을 이야기로 풀어 주세요.'),
+            ...heading(
+              ctx,
+              loc(title),
+              loc(
+                '창업의 계기, 제품에 담은 철학, 해외 진출에서 겪은 어려움을 이야기로 풀어 주세요.',
+                'Tell the story: why the business started, the thinking behind the product, and what going overseas took.',
+              ),
+            ),
             { type: 'Container', props: { id: rowId, layoutMode: 'flex', name: '이미지 + 글', style: { width: '100%', flex: { direction: 'row', gap: 32, align: 'flex-start', wrap: 'wrap' } } } },
           ],
           [`${rowId}:items`]: [
@@ -286,7 +339,10 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
               type: 'Text',
               props: {
                 id: ctx.id(), name: '스토리 본문',
-                html: loc('여기에 이야기를 적어 주세요. 문단을 나누고, 중요한 문장은 굵게 강조하면 읽기 좋습니다.'),
+                html: loc(
+                  '여기에 이야기를 적어 주세요. 문단을 나누고, 중요한 문장은 굵게 강조하면 읽기 좋습니다.',
+                  'Write the story here. Break it into paragraphs and bold the sentences that matter.',
+                ),
                 tag: 'p',
                 style: { color: '#374151', typography: { fontSize: 17, lineHeight: 1.9 }, flexItem: { grow: 1, basis: 320 } },
               },
@@ -304,7 +360,11 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
     suggestedFor: ['business'],
     build: ({ title, locale }) => {
       const ctx: Ctx = { id: makeIds('el'), title, locale };
-      const hero = heroCanvas(ctx, { subtitle: '문의를 남겨 주시면 확인 후 연락드리겠습니다.', cta: '문의하기', ctaTarget: 'form' });
+      const hero = heroCanvas(ctx, {
+        subtitle: loc('문의를 남겨 주시면 확인 후 연락드리겠습니다.', 'Leave an inquiry and we will get back to you.'),
+        cta: loc('문의하기', 'Send inquiry'),
+        ctaTarget: 'form',
+      });
       const section = ctx.id();
       return {
         root: { props: ROOT_PROPS },
@@ -315,7 +375,14 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
         zones: {
           ...hero.zones,
           [`${section}:content`]: [
-            ...heading(ctx, title, '아래 항목을 채워 보내 주세요. 접수 내역은 관리자 화면에서 확인할 수 있습니다.'),
+            ...heading(
+              ctx,
+              loc(title),
+              loc(
+                '아래 항목을 채워 보내 주세요. 접수 내역은 관리자 화면에서 확인할 수 있습니다.',
+                'Fill in the fields below. Submissions appear in the admin screen.',
+              ),
+            ),
             {
               type: 'Form',
               props: {
@@ -351,7 +418,11 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
     suggestedFor: ['video'],
     build: ({ title, locale }) => {
       const ctx: Ctx = { id: makeIds('el'), title, locale };
-      const hero = heroCanvas(ctx, { subtitle: '영상으로 만나는 K-SOHO GLOBAL.', cta: '영상 보기', ctaTarget: 'videos' });
+      const hero = heroCanvas(ctx, {
+        subtitle: loc('영상으로 만나는 K-SOHO GLOBAL.', 'K-SOHO GLOBAL, on video.'),
+        cta: loc('영상 보기', 'Watch'),
+        ctaTarget: 'videos',
+      });
       const section = ctx.id();
       const gridId = ctx.id();
       return {
@@ -363,7 +434,14 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
         zones: {
           ...hero.zones,
           [`${section}:content`]: [
-            ...heading(ctx, title, '각 영상 블록의 우측 패널에서 YouTube 주소나 영상 ID 를 붙여 넣으세요. Shorts 도 지원합니다.'),
+            ...heading(
+              ctx,
+              loc(title),
+              loc(
+                '각 영상 블록의 우측 패널에서 YouTube 주소나 영상 ID 를 붙여 넣으세요. Shorts 도 지원합니다.',
+                'Paste a YouTube URL or video ID into each video block. Shorts are supported.',
+              ),
+            ),
             { type: 'Container', props: { id: gridId, layoutMode: 'grid', name: '영상 그리드', style: { width: '100%', grid: { columns: 3, gap: 24 } } } },
           ],
           [`${gridId}:items`]: [1, 2, 3].map((n) => ({
