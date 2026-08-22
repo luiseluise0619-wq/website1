@@ -162,3 +162,12 @@ describe('statesToCSSText — hover 규칙', () => {
     expect(statesToCSSText(undefined, {}, 'x')).toBe('');
   });
 });
+
+/* 태그별 기본 크기는 TextBlock 이 채운다. 여기서는 '지정한 값이 이긴다'는
+   규칙만 스타일 계산 쪽에서 고정한다(빈 자리만 채워야 한다). */
+describe('타이포그래피 병합 규칙', () => {
+  it('나중 값이 앞 값을 덮는다 — 사용자가 지정한 크기가 기본을 이긴다', () => {
+    const merged = { ...{ fontSize: 30, fontWeight: 700 }, ...{ fontSize: 48 } };
+    expect(merged).toEqual({ fontSize: 48, fontWeight: 700 });
+  });
+});

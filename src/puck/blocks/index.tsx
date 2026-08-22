@@ -25,11 +25,30 @@ type Block<P> = P & BaseBlockProps & { id?: string; free?: boolean };
 
 /* ---- Text ----------------------------------------------------------------- */
 
+/**
+ * 태그별 기본 크기.
+ * Tailwind preflight 가 h1~h4 의 크기를 지워 버려서, 에디터에서 태그를 h2 로
+ * 바꿔도 화면은 본문 그대로였다("바꿔도 아무 일이 없다"). 사용자가 크기를
+ * 지정하면 그 값이 이긴다 — 여기서는 비어 있는 자리만 채운다.
+ */
+const TAG_TYPOGRAPHY: Partial<Record<string, { fontSize: number; fontWeight: number; lineHeight: number }>> = {
+  h1: { fontSize: 40, fontWeight: 800, lineHeight: 1.2 },
+  h2: { fontSize: 30, fontWeight: 700, lineHeight: 1.25 },
+  h3: { fontSize: 22, fontWeight: 700, lineHeight: 1.35 },
+  h4: { fontSize: 18, fontWeight: 700, lineHeight: 1.4 },
+};
+
 export function TextBlock(props: Block<TextProps>) {
   const { tag = 'p', html } = props;
   const value = useLocalized(html);
+
+  const defaults = TAG_TYPOGRAPHY[tag];
+  const styled = defaults
+    ? { ...props, style: { ...props.style, typography: { ...defaults, ...props.style?.typography } } }
+    : props;
+
   return (
-    <BlockShell {...props} elementType="Text" as={tag} free={props.free}>
+    <BlockShell {...styled} elementType="Text" as={tag} free={props.free}>
       {/* 인라인 서식(<strong>, <span style="color">)을 허용하기 위한 HTML 렌더.
           값은 저장 시점(/api/pages)에 sanitizeHtml() 로 정화되어 들어온다. */}
       <span dangerouslySetInnerHTML={{ __html: value }} />
