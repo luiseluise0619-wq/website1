@@ -158,13 +158,17 @@ export async function summarize(filters: AnalyticsFilters): Promise<PageAnalytic
     const views = dwellRows.filter((r) => (r.payload as unknown as SectionDwellPayload).sectionId === sectionId);
     const viewSessions = new Set(views.map((r) => r.sessionId)).size;
     const dwellTotal = views.reduce((n, r) => n + (r.payload as unknown as SectionDwellPayload).dwellMs, 0);
+    /* 이탈률은 '이 섹션을 본 세션 중 여기서 떠난 비율' 이다. 분자를 이벤트 수로
+       세면 한 세션이 같은 섹션에서 두 번 떠났을 때 100% 를 넘는 값(예: 175%)이
+       패널에 그대로 표시된다. 분자·분모를 모두 세션 단위로 맞춘다. */
+    const exitSessions = new Set(exits.map((r) => r.sessionId)).size;
     return {
       sectionId,
       sectionName:
         (exits[0]?.payload as unknown as ExitPayload)?.lastVisibleSectionName ??
         (views[0]?.payload as unknown as SectionDwellPayload)?.sectionName,
       exits: exits.length,
-      exitRate: viewSessions ? exits.length / viewSessions : 0,
+      exitRate: viewSessions ? Math.min(1, exitSessions / viewSessions) : 0,
       views: viewSessions,
       avgDwellMs: views.length ? dwellTotal / views.length : 0,
     };

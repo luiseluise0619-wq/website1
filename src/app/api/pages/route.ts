@@ -7,8 +7,16 @@ import type { PageDocument } from '@/types/schema';
 
 export const dynamic = 'force-dynamic';
 
-/** GET /api/pages — 에디터 부팅 시 전체 페이지 목록 */
+/**
+ * GET /api/pages — 전체 페이지 목록(관리자 전용)
+ * 초안·보관 페이지까지 본문째로 돌려주므로 공개 사이트가 숨기는 내용이 그대로 새어
+ * 나간다. 에디터는 서버 컴포넌트에서 listPages() 를 직접 읽으므로 이 라우트를
+ * 잠가도 화면은 그대로 동작한다.
+ */
 export async function GET() {
+  const auth = assertAdmin();
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
   const pages = await listPages();
   return NextResponse.json({ pages });
 }

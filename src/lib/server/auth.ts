@@ -75,14 +75,14 @@ export function isAdminRequest(): boolean {
   return verifySessionToken(cookies().get(SESSION_COOKIE)?.value);
 }
 
-/** 쓰기 API 가 호출하는 가드 — 통과하지 못하면 사유를 돌려준다 */
+/** 관리자 전용 API(쓰기 + 비공개 데이터 조회)의 가드 — 통과하지 못하면 사유를 돌려준다 */
 export function assertAdmin(): { ok: true } | { ok: false; status: number; error: string } {
   if (authDisabledForDev()) return { ok: true };
   if (!isAuthConfigured()) {
     return {
       ok: false,
       status: 503,
-      error: 'ADMIN_PASSWORD 가 설정되지 않아 쓰기가 비활성화되었습니다. 배포 환경 변수를 확인하세요.',
+      error: 'ADMIN_PASSWORD 가 설정되지 않아 관리자 API 가 비활성화되었습니다. 배포 환경 변수를 확인하세요.',
     };
   }
   return isAdminRequest() ? { ok: true } : { ok: false, status: 401, error: '관리자 인증이 필요합니다.' };

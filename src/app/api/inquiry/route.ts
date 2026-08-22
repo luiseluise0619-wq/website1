@@ -3,31 +3,18 @@ import { inquiryStorage, StorageReadOnlyError } from '@/lib/server/storage';
 import { assertAdmin } from '@/lib/server/auth';
 import { getPageByPath } from '@/lib/server/pageStore';
 import { formatZodError, inquiryRequestSchema } from '@/lib/schemas';
+import { clientIp, createRateLimiter } from '@/lib/server/rateLimit';
 import type { LocaleCode } from '@/types/schema';
 import type { InquiryRecord } from '@/lib/server/storage/types';
 
 export const dynamic = 'force-dynamic';
 
-/** 제출 남용 방지 — 인스턴스 단위의 단순 창 제한 */
-const submissions = new Map<string, { count: number; first: number }>();
-const WINDOW_MS = 10 * 60 * 1000;
-const MAX_PER_WINDOW = 8;
-
-function rateLimited(ip: string): boolean {
-  const now = Date.now();
-  const record = submissions.get(ip);
-  if (!record || now - record.first > WINDOW_MS) {
-    submissions.set(ip, { count: 1, first: now });
-    return false;
-  }
-  record.count += 1;
-  return record.count > MAX_PER_WINDOW;
-}
+/** 제출 남용 방지 — 10분에 8건 */
+const rateLimited = createRateLimiter({ windowMs: 10 * 60 * 1000, max: 8 });
 
 /** POST /api/inquiry — BUSINESS 폼 접수 (공개 엔드포인트) */
 export async function POST(request: Request) {
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
-  if (rateLimited(ip)) {
+  if (rateLimited(clientIp(request))) {
     return NextResponse.json({ error: '잠시 후 다시 시도해 주세요.' }, { status: 429 });
   }
 

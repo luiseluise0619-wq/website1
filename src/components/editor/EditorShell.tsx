@@ -9,7 +9,7 @@ import { useEditorStore } from '@/store/editorStore';
 import { fetchJson } from '@/lib/fetchJson';
 import { PageTree } from './PageTree';
 import { EditorToolbar } from './EditorToolbar';
-import { RightPanel } from './RightPanel';
+import { RightPanel, type RightTab } from './RightPanel';
 import { FreeTransformLayer } from './FreeTransformLayer';
 import { HeatmapOverlay } from '@/components/analytics/HeatmapOverlay';
 import type { Data } from '@puckeditor/core';
@@ -59,6 +59,7 @@ export function EditorShell({ initialPages, storage }: { initialPages: PageDocum
   const liveData = React.useRef<PuckPageData | null>(null);
   /** 번역 등으로 데이터를 통째로 갈아끼울 때 Puck 을 리마운트하기 위한 키 */
   const [dataVersion, setDataVersion] = React.useState(0);
+  const [rightTab, setRightTab] = React.useState<RightTab>('style');
 
   React.useEffect(() => {
     loadPages(initialPages);
@@ -68,9 +69,12 @@ export function EditorShell({ initialPages, storage }: { initialPages: PageDocum
     liveData.current = activePage?.content ?? null;
   }, [activePage?.id]);
 
-  /* --- 히트맵 켤 때 분석 데이터 로드 --- */
+  /* --- 분석 데이터 로드 (히트맵 또는 '분석' 탭) ---
+     히트맵에만 걸어 두면 우측 '분석' 탭이 아무것도 부르지 않아
+     "분석 데이터를 불러오면…" 안내만 영원히 남는다. */
+  const needAnalytics = heatmapEnabled || rightTab === 'analytics';
   React.useEffect(() => {
-    if (!heatmapEnabled || !activePage) return;
+    if (!needAnalytics || !activePage) return;
     let cancelled = false;
     setAnalyticsLoading(true);
     const params = new URLSearchParams({ pageId: activePage.id, from: heatmapRange.from, to: heatmapRange.to });
@@ -80,7 +84,7 @@ export function EditorShell({ initialPages, storage }: { initialPages: PageDocum
     return () => {
       cancelled = true;
     };
-  }, [heatmapEnabled, activePage?.id, heatmapRange, setAnalytics, setAnalyticsLoading, setAnalyticsError]);
+  }, [needAnalytics, activePage?.id, heatmapRange, setAnalytics, setAnalyticsLoading, setAnalyticsError]);
 
   /* --- Puck iframe document 탐색 (히트맵 오버레이 좌표 기준) --- */
   React.useEffect(() => {
@@ -237,6 +241,8 @@ export function EditorShell({ initialPages, storage }: { initialPages: PageDocum
                     isLoading={isLoading}
                     hasSelection={Boolean(itemSelector)}
                     analytics={analytics}
+                    tab={rightTab}
+                    onTabChange={setRightTab}
                   >
                     {children}
                   </RightPanel>

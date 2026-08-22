@@ -124,6 +124,19 @@ describe('summarize — 이탈 지점', () => {
     expect(s.dropOff.find((d) => d.sectionId === 'body')!.exitRate).toBeCloseTo(0.2);
   });
 
+  it('한 세션이 같은 섹션에서 두 번 떠나도 이탈률이 100% 를 넘지 않는다', async () => {
+    /* 언어 전환처럼 한 방문 안에서 exit 이 두 번 기록될 수 있다.
+       분자를 이벤트 수로 세면 175% 같은 값이 패널에 그대로 표시된다. */
+    rows.push(row({ type: 'section_dwell', sessionId: 's1', payload: { sectionId: 'hero', dwellMs: 4000 } }));
+    rows.push(row({ type: 'exit', sessionId: 's1', payload: { lastVisibleSectionId: 'hero', timeOnPage: 4000, interacted: true } }));
+    rows.push(row({ type: 'exit', sessionId: 's1', payload: { lastVisibleSectionId: 'hero', timeOnPage: 9000, interacted: true } }));
+
+    const s = await summarize({});
+    const hero = s.dropOff.find((d) => d.sectionId === 'hero')!;
+    expect(hero.exits).toBe(2); // 원본 이벤트 수는 그대로 보여 준다
+    expect(hero.exitRate).toBe(1);
+  });
+
   it('상호작용 없이 떠난 세션을 바운스로 센다', async () => {
     rows.push(
       row({ type: 'exit', sessionId: 's1', payload: { interacted: false, timeOnPage: 2000 } }),

@@ -26,10 +26,13 @@ export interface RightPanelProps {
   /** 선택된 요소가 없으면 null — 안내 문구를 대신 보여준다 */
   hasSelection: boolean;
   analytics: PageAnalyticsSummary | null;
+  /* 탭 상태는 바깥이 쥔다: '분석' 을 열었을 때 EditorShell 이 집계를 불러와야 하는데,
+     여기에 가둬 두면 그 사실을 알 방법이 없어 패널이 영원히 빈 채로 남는다. */
+  tab: RightTab;
+  onTabChange: (tab: RightTab) => void;
 }
 
-export function RightPanel({ children, isLoading, hasSelection, analytics }: RightPanelProps) {
-  const [tab, setTab] = React.useState<RightTab>('style');
+export function RightPanel({ children, isLoading, hasSelection, analytics, tab, onTabChange }: RightPanelProps) {
 
   return (
     <div style={shell}>
@@ -44,7 +47,7 @@ export function RightPanel({ children, isLoading, hasSelection, analytics }: Rig
           <button
             key={key}
             type="button"
-            onClick={() => setTab(key)}
+            onClick={() => onTabChange(key)}
             style={{
               ...tabBtn,
               color: tab === key ? 'var(--puck-color-black, #111827)' : 'var(--puck-color-grey-05, #6b7280)',

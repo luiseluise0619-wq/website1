@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { DEFAULT_ANALYTICS_CONFIG, dispatchRealtime, hasConsent, initGA4, sendBatch } from '@/lib/analytics/providers';
 import { getAnonymousId, getDeviceInfo, getSessionId, getUTM, uuid } from '@/lib/analytics/identity';
 import { initPostHog, posthogPageView, sendToPostHog, setPostHogPersonProps } from '@/lib/analytics/posthog';
@@ -57,13 +57,19 @@ const RAGE_THRESHOLD = 3;
 export function useCanvasAnalytics(options: UseCanvasAnalyticsOptions): CanvasAnalyticsApi {
   const { pageId, path, locale, title, enabled = true, rootRef } = options;
 
-  const config: AnalyticsProviderConfig = {
-    ...DEFAULT_ANALYTICS_CONFIG,
-    ...options.config,
-    internal: { ...DEFAULT_ANALYTICS_CONFIG.internal, ...options.config?.internal },
-    ga4: { ...DEFAULT_ANALYTICS_CONFIG.ga4, ...options.config?.ga4 },
-    mixpanel: { ...DEFAULT_ANALYTICS_CONFIG.mixpanel, ...options.config?.mixpanel },
-  };
+  /* 렌더마다 config 를 새로 만들면 flush → track 의 참조가 매번 바뀌어
+     이 훅의 모든 이펙트가 렌더마다 정리·재등록된다. 그 부작용으로 이탈(exit)
+     이벤트가 마운트 직후 발사돼 모든 세션이 '이탈'로 집계됐다. */
+  const config: AnalyticsProviderConfig = useMemo(
+    () => ({
+      ...DEFAULT_ANALYTICS_CONFIG,
+      ...options.config,
+      internal: { ...DEFAULT_ANALYTICS_CONFIG.internal, ...options.config?.internal },
+      ga4: { ...DEFAULT_ANALYTICS_CONFIG.ga4, ...options.config?.ga4 },
+      mixpanel: { ...DEFAULT_ANALYTICS_CONFIG.mixpanel, ...options.config?.mixpanel },
+    }),
+    [options.config],
+  );
 
   /* --- 세션 상태 (렌더와 무관하므로 전부 ref) --- */
   const queue = useRef<AnalyticsEvent[]>([]);
@@ -151,6 +157,10 @@ export function useCanvasAnalytics(options: UseCanvasAnalyticsOptions): CanvasAn
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled]);
 
+  /* 세션 상태 초기화 + page_view — '페이지가 바뀔 때만' 이다.
+     언어 전환은 같은 방문의 연속이므로 여기에 포함하지 않는다. 포함하면
+     방문 1회가 page_view 2건으로 부풀고, interacted 가 초기화되어 클릭한
+     방문자까지 이탈(bounce)로 집계된다. 언어 전환은 locale_change 로 남는다. */
   useEffect(() => {
     if (!enabled) return;
     startedAt.current = Date.now();
@@ -164,7 +174,7 @@ export function useCanvasAnalytics(options: UseCanvasAnalyticsOptions): CanvasAn
     track('page_view', { title: title ?? document.title, loadMs });
     posthogPageView(path, { page_id: pageId, locale });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, pageId, path, locale]);
+  }, [enabled, pageId, path]);
 
   /* --- 1. 클릭 위임 --------------------------------------------------------- */
   useEffect(() => {
@@ -340,11 +350,9 @@ export function useCanvasAnalytics(options: UseCanvasAnalyticsOptions): CanvasAn
   }, [enabled, track, pageId]);
 
   /* --- 4. 이탈 (Drop-off) --------------------------------------------------- */
-  useEffect(() => {
-    if (!enabled) return;
-
-    const sendExit = (reason: 'hidden' | 'unload' | 'navigation') => {
-      if (exitSent.current) return;
+  const sendExit = useCallback(
+    (reason: 'hidden' | 'unload' | 'navigation') => {
+      if (!enabled || exitSent.current) return;
       exitSent.current = true;
 
       // 진행 중이던 섹션 체류를 마감해서 함께 보낸다
@@ -370,14 +378,26 @@ export function useCanvasAnalytics(options: UseCanvasAnalyticsOptions): CanvasAn
         interacted: interacted.current,
       });
       flush();
-    };
+    },
+    [enabled, track, flush],
+  );
+
+  /* 리스너와 언마운트 정리는 최신 sendExit 을 ref 로 참조한다 —
+     의존성으로 넣으면 sendExit 이 바뀔 때마다 정리 함수가 돌아 이탈이 찍힌다. */
+  const sendExitRef = useRef(sendExit);
+  useEffect(() => {
+    sendExitRef.current = sendExit;
+  }, [sendExit]);
+
+  useEffect(() => {
+    if (!enabled) return;
 
     /* visibilitychange 가 모바일에서 가장 신뢰할 수 있는 신호다.
        pagehide 는 bfcache 대응, beforeunload 는 데스크톱 폴백. */
     const onVisibility = () => {
-      if (document.visibilityState === 'hidden') sendExit('hidden');
+      if (document.visibilityState === 'hidden') sendExitRef.current('hidden');
     };
-    const onPageHide = () => sendExit('unload');
+    const onPageHide = () => sendExitRef.current('unload');
 
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('pagehide', onPageHide);
@@ -385,10 +405,16 @@ export function useCanvasAnalytics(options: UseCanvasAnalyticsOptions): CanvasAn
     return () => {
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('pagehide', onPageHide);
-      // SPA 라우트 전환 = 이탈이 아니라 이동
-      sendExit('navigation');
     };
-  }, [enabled, track, flush]);
+  }, [enabled]);
+
+  /* 진짜로 페이지를 떠날 때(언마운트)만 이탈로 기록한다 */
+  useEffect(
+    () => () => {
+      sendExitRef.current('navigation');
+    },
+    [],
+  );
 
   /* --- 5. 주기적 플러시 ----------------------------------------------------- */
   useEffect(() => {

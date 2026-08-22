@@ -9,6 +9,14 @@ export const dynamic = 'force-dynamic';
 const MAX_BODY = 256 * 1024;
 const MAX_EVENTS = 200;
 
+function safeParseJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * POST /api/analytics/collect
  * 브라우저의 useCanvasAnalytics 가 배치로 보내는 이벤트를 적재한다.
@@ -20,7 +28,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'payload too large' }, { status: 413 });
   }
 
-  const parsed = analyticsBatchSchema.safeParse(await request.json().catch(() => null));
+  /* content-length 는 청크 전송이면 아예 없다. 헤더만 믿으면 인증 없는 이 경로로
+     무제한 본문을 파싱하게 되므로, 실제로 받은 크기를 다시 확인한다. */
+  const body = await request.text().catch(() => '');
+  if (body.length > MAX_BODY) {
+    return NextResponse.json({ error: 'payload too large' }, { status: 413 });
+  }
+
+  const parsed = analyticsBatchSchema.safeParse(safeParseJson(body));
   /* 수집은 최선 노력(best-effort)이다. 형식이 틀린 배치 때문에 방문자 브라우저에
      오류를 돌려줄 이유가 없으므로 조용히 0건 처리한다. */
   if (!parsed.success || !parsed.data.events.length) {
