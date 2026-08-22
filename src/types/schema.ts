@@ -296,6 +296,8 @@ export interface ImageProps {
   objectFit?: 'cover' | 'contain' | 'fill' | 'none' | 'scale-down';
   objectPosition?: string;
   link?: ActionBinding;
+  /** 첫 화면에 보이는 이미지(히어로 배너 등) — 지연 로딩하지 않는다 */
+  priority?: boolean;
 }
 
 export type VideoProvider = 'youtube' | 'youtube-shorts' | 'vimeo' | 'file';

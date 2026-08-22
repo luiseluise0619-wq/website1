@@ -378,7 +378,7 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
             {
               type: 'Image',
               props: {
-                id: ctx.id(), name: '스토리 이미지', src: PHOTO.factory, alt: ctx.title$, objectFit: 'cover',
+                id: ctx.id(), name: '스토리 이미지', src: PHOTO.factory, alt: ctx.title$, objectFit: 'cover', priority: true,
                 style: { width: 460, height: 340, border: { radius: 16 }, overflow: 'hidden', flexItem: { grow: 0, shrink: 0, basis: 460 } },
               },
             },

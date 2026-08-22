@@ -95,14 +95,23 @@ function ButtonInner({ href, target, label }: { href?: string; target?: string; 
 
 export function ImageBlock(props: Block<ImageProps>) {
   const alt = useLocalized(props.alt);
-  const { locale } = useRenderCtx();
+  const { locale, isEditing } = useRenderCtx();
   const src = props.srcByLocale?.[locale] || props.src;
+
+  /* 첫 화면(히어로)의 이미지는 즉시, 아래쪽 이미지는 스크롤할 때 받는다.
+     카드가 수십 장인 페이지에서 전부 즉시 받으면 첫 렌더가 그만큼 늦어진다.
+     에디터 캔버스에서는 전부 즉시 — 작업 중 이미지가 비어 보이면 안 된다. */
+  const eager = isEditing || props.priority;
+
   return (
     <BlockShell {...props} elementType="Image" free={props.free}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src}
         alt={alt}
+        loading={eager ? 'eager' : 'lazy'}
+        decoding={eager ? 'sync' : 'async'}
+        fetchPriority={props.priority ? 'high' : undefined}
         style={{
           width: '100%',
           height: '100%',

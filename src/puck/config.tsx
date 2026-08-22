@@ -274,6 +274,15 @@ export const puckConfig: Config<KsohoBlocks, KsohoRootProps> = {
             { label: 'Fill', value: 'fill' },
           ],
         },
+        /* 첫 화면에 보이는 이미지만 켠다 — 전부 켜면 지연 로딩의 의미가 사라진다 */
+        priority: {
+          type: 'radio',
+          label: '첫 화면 이미지 (즉시 로딩)',
+          options: [
+            { label: '아니오', value: false },
+            { label: '예', value: true },
+          ],
+        },
         ...commonFields,
       },
       defaultProps: {
