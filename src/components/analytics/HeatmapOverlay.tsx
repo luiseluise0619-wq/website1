@@ -33,7 +33,10 @@ function heatColor(intensity: number, alpha = 0.55): string {
   return `hsla(${hue}, 90%, 52%, ${alpha})`;
 }
 
-function metricValue(stat: ElementStat, metric: 'clicks' | 'ctr' | 'rage'): { value: number; display: string; intensity: number } {
+function metricValue(
+  stat: ElementStat,
+  metric: 'clicks' | 'ctr' | 'rage' | 'dead',
+): { value: number; display: string; intensity: number } {
   if (metric === 'ctr') {
     return { value: stat.ctr, display: `${(stat.ctr * 100).toFixed(1)}%`, intensity: Math.min(1, stat.ctr * 2) };
   }
@@ -41,8 +44,22 @@ function metricValue(stat: ElementStat, metric: 'clicks' | 'ctr' | 'rage'): { va
     const rate = stat.clicks ? stat.rageClicks / stat.clicks : 0;
     return { value: stat.rageClicks, display: `${stat.rageClicks}회`, intensity: Math.min(1, rate * 5) };
   }
+  if (metric === 'dead') {
+    /* 데드 클릭 = 링크도 액션도 없는 곳을 눌렀다. 눌러도 아무 일이 없다는
+       뜻이라, 한 번만 있어도 눈에 띄어야 한다(비율을 크게 잡는다). */
+    const rate = stat.clicks ? stat.deadClicks / stat.clicks : 0;
+    return { value: stat.deadClicks, display: `${stat.deadClicks}회`, intensity: Math.min(1, rate * 3) };
+  }
   return { value: stat.clicks, display: `${stat.clicks.toLocaleString()}회`, intensity: stat.intensity };
 }
+
+/** 지표 이름은 한 곳에서만 정한다 — 범례와 선택 상자가 어긋나지 않게 */
+const METRIC_LABEL: Record<'clicks' | 'ctr' | 'rage' | 'dead', string> = {
+  clicks: '클릭 수',
+  ctr: '노출 대비 클릭률',
+  rage: '분노 클릭',
+  dead: '데드 클릭',
+};
 
 /** Puck 캔버스 iframe 을 찾는 선택자 — 버전에 따라 클래스명이 바뀌므로 여러 개를 둔다 */
 const CANVAS_FRAME_SELECTOR = 'iframe#preview-frame, .Puck-frame iframe, iframe';
@@ -233,6 +250,7 @@ export function HeatmapOverlay({ frameSelector = CANVAS_FRAME_SELECTOR, containe
                 <Row label="CTR" value={`${(stat.ctr * 100).toFixed(1)}%`} />
                 <Row label="순 클릭자" value={stat.uniqueClickers.toLocaleString()} />
                 {stat.rageClicks > 0 ? <Row label="⚠ 분노 클릭" value={`${stat.rageClicks}`} /> : null}
+                {stat.deadClicks > 0 ? <Row label="⚠ 데드 클릭" value={`${stat.deadClicks}`} /> : null}
                 {stat.deadClicks > 0 ? <Row label="⚠ 반응 없는 클릭" value={`${stat.deadClicks}`} /> : null}
                 <div style={{ opacity: 0.5, marginTop: 4, fontFamily: 'monospace' }}>{box.id}</div>
               </div>
@@ -244,7 +262,7 @@ export function HeatmapOverlay({ frameSelector = CANVAS_FRAME_SELECTOR, containe
       {/* --- 범례 & 요약 --- */}
       <div style={panelStyle}>
         <div style={{ fontWeight: 700, marginBottom: 6 }}>
-          히트맵 · {metric === 'clicks' ? '클릭 수' : metric === 'ctr' ? '노출 대비 클릭률' : '분노 클릭'}
+          히트맵 · {METRIC_LABEL[metric]}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
           <span style={{ fontSize: 10, opacity: 0.7 }}>낮음</span>

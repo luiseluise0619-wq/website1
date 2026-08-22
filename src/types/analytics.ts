@@ -21,6 +21,9 @@ export type AnalyticsEventType =
   | 'dead_click'           // 클릭했지만 아무 반응 없는 요소
   | 'conversion'
   | 'locale_change'
+  /* 예약됨(아직 수집하지 않음): YouTube IFrame Player API 를 붙여야 하는데,
+     외부 스크립트 의존이 생기고 현재 검증할 방법이 없어 미룬다. 이 타입으로
+     리포트를 만들면 항상 0 이 나온다. */
   | 'video_progress'
   | 'form_submit';
 

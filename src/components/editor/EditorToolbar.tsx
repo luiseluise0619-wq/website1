@@ -227,10 +227,15 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
           히트맵 {heatmapEnabled ? 'ON' : 'OFF'}
         </button>
         {heatmapEnabled ? (
-          <select value={heatmapMetric} onChange={(e) => setHeatmapMetric(e.target.value as 'clicks')} style={{ ...input, width: 110 }}>
+          <select
+            value={heatmapMetric}
+            onChange={(e) => setHeatmapMetric(e.target.value as 'clicks' | 'ctr' | 'rage' | 'dead')}
+            style={{ ...input, width: 120 }}
+          >
             <option value="clicks">클릭 수</option>
             <option value="ctr">CTR</option>
             <option value="rage">분노 클릭</option>
+            <option value="dead">데드 클릭</option>
           </select>
         ) : null}
       </div>

@@ -37,7 +37,7 @@ export interface EditorState {
 
   /** Analytics — 히트맵 오버레이 */
   heatmapEnabled: boolean;
-  heatmapMetric: 'clicks' | 'ctr' | 'rage';
+  heatmapMetric: 'clicks' | 'ctr' | 'rage' | 'dead';
   heatmapRange: { from: string; to: string };
   analytics: PageAnalyticsSummary | null;
   analyticsLoading: boolean;
@@ -83,7 +83,7 @@ export interface EditorActions {
   setTranslating: (v: boolean, progress?: { done: number; total: number } | null) => void;
 
   toggleHeatmap: () => void;
-  setHeatmapMetric: (metric: 'clicks' | 'ctr' | 'rage') => void;
+  setHeatmapMetric: (metric: 'clicks' | 'ctr' | 'rage' | 'dead') => void;
   setHeatmapRange: (range: { from: string; to: string }) => void;
   setAnalytics: (summary: PageAnalyticsSummary | null) => void;
   setAnalyticsLoading: (v: boolean) => void;
