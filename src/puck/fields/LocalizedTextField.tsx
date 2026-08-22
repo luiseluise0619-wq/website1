@@ -32,6 +32,8 @@ interface Props {
 
 export function LocalizedTextInput({ value, onChange, label, multiline }: Props) {
   const editingLocale = useEditorStore((s) => s.editingLocale);
+  /* 뱃지를 눌러 그 언어로 바로 넘어갈 수 있게 한다 — 상단까지 올라가지 않아도 된다 */
+  const setEditingLocale = useEditorStore((s) => s.setEditingLocale);
   const showBadges = useEditorStore((s) => s.showTranslationBadges);
   const sourceLocale = useEditorStore((s) => s.activePage()?.sourceLocale ?? 'ko');
   const [busy, setBusy] = React.useState(false);
@@ -131,9 +133,11 @@ export function LocalizedTextInput({ value, onChange, label, multiline }: Props)
             const state = translationState(value, locale, sourceLocale);
             const s = STATE_STYLE[state];
             return (
-              <span
+              <button
                 key={locale}
-                title={`${LOCALES[locale].nativeName}: ${s.label}`}
+                type="button"
+                onClick={() => setEditingLocale(locale)}
+                title={`${LOCALES[locale].koName}: ${s.label} — 눌러서 이 언어로 편집`}
                 style={{
                   fontSize: 10,
                   padding: '2px 5px',
@@ -142,10 +146,12 @@ export function LocalizedTextInput({ value, onChange, label, multiline }: Props)
                   color: s.fg,
                   fontWeight: 600,
                   opacity: locale === editingLocale ? 1 : 0.75,
+                  border: locale === editingLocale ? '1px solid currentColor' : '1px solid transparent',
+                  cursor: 'pointer',
                 }}
               >
                 {locale.toUpperCase()}
-              </span>
+              </button>
             );
           })}
         </div>
