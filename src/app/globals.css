@@ -131,7 +131,11 @@ html, body {
     box-sizing: border-box;
   }
 
-  [data-ks-site] [data-free-canvas='true'] > * > * {
+  /* 요소를 흐름으로 되돌린다. 에디터 캔버스에서는 Puck 이 항목마다 래퍼를
+     한 겹 더 씌우므로 '자식의 자식'만으로는 닿지 않는다 — 추적 ID 를 가진
+     요소(= 우리 블록)는 몇 겹 안에 있든 함께 푼다. */
+  [data-ks-site] [data-free-canvas='true'] > * > *,
+  [data-ks-site] [data-free-canvas='true'] [data-element-id] {
     position: static !important;
     left: auto !important;
     top: auto !important;

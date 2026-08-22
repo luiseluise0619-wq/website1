@@ -38,6 +38,8 @@ const HANDLES: Array<{ key: Handle; cursor: string; style: React.CSSProperties }
 
 const MIN_SIZE = 12;
 const SNAP = 1;
+/** 이 폭 이하에서는 실제 사이트가 자유 배치를 세로 스택으로 푼다 (globals.css) */
+const MOBILE_PREVIEW_MAX = 767;
 
 interface Box {
   top: number;
@@ -90,6 +92,8 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
   const setPickedId = useEditorStore((s) => s.setPickedElement);
   const [box, setBox] = React.useState<Box | null>(null);
   const [regions, setRegions] = React.useState<CanvasRegion[]>([]);
+  /** 휴대폰 미리보기 폭에서는 조작을 잠근다 */
+  const [locked, setLocked] = React.useState(false);
   const [mode, setMode] = React.useState<'idle' | 'move' | Handle>('idle');
   /* containerRef 는 ref 라 값이 채워져도 리렌더가 일어나지 않는다 —
      첫 페인트 뒤 한 번 다시 그려 포털 대상을 잡는다. */
@@ -122,6 +126,17 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
       return;
     }
     const { doc, scale, offsetX, offsetY } = geo;
+
+    /* 휴대폰 미리보기에서는 자유 배치가 세로 스택으로 풀린다. 그 상태에서
+       끌면 화면에서 본 위치와 저장되는 x/y 가 서로 다른 것을 가리키므로
+       조작 레이어를 아예 내린다(잘못 저장하는 것보다 못 만지는 편이 낫다). */
+    if ((doc.defaultView?.innerWidth ?? 1440) <= MOBILE_PREVIEW_MAX) {
+      setBox(null);
+      setRegions([]);
+      setLocked(true);
+      return;
+    }
+    setLocked(false);
     const toScreen = (r: DOMRect) => ({
       left: r.left * scale + offsetX,
       top: r.top * scale + offsetY,
@@ -492,6 +507,26 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
 
   return createPortal(
     <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 2000 }}>
+      {locked ? (
+        <div
+          style={{
+            position: 'absolute',
+            top: 12,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 21,
+            padding: '7px 14px',
+            borderRadius: 999,
+            background: 'rgba(13,15,20,.92)',
+            color: '#fcd34d',
+            fontSize: 12,
+            pointerEvents: 'none',
+            boxShadow: '0 6px 20px rgba(0,0,0,.35)',
+          }}
+        >
+          휴대폰 폭에서는 세로 스택으로 표시됩니다 — 자유 배치 편집은 넓은 폭에서
+        </div>
+      ) : null}
       {/* 캔버스 어디서든 닿는 섹션 추가 버튼 */}
       <button
         type="button"
