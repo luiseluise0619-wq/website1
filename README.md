@@ -20,6 +20,7 @@ npm run dev                    # http://localhost:3000
 |---|---|
 | `/` | 공개 사이트 (발행된 페이지) |
 | `/admin/editor` | 캔버스 에디터 |
+| `/admin/inquiries` | 문의 관리 (접수 목록·상태·CSV) |
 | `/global/thailand`, `/business/buyer-inquiry` … | IA 의 모든 경로가 자동 생성됨 |
 
 데모 분석 데이터를 넣어 히트맵을 바로 확인하려면:
@@ -141,6 +142,23 @@ src/
 **중첩 존에는 insert 가 통하지 않는다.** 런타임에 등록되지 않은 존을 대상으로 한
 `insert` 는 조용히 무시되므로, 섹션 추가는 `setData` 로 문서를 다시 쓰는 방식이다.
 
+## 휴대폰에서의 자유 배치
+
+자유 배치 좌표는 1440px 아트보드를 전제로 박혀 있습니다. 그대로 두면 390px 화면에서
+제목이 잘리고 CTA 가 화면 밖으로 나갑니다. 그래서 방문자 화면에서만 두 단계로 대응합니다.
+
+| 화면 폭 | 동작 |
+|---|---|
+| 1440px 이상 | 설계 그대로 |
+| 768 ~ 1439px | 아트보드를 화면 폭에 맞춰 **비례 축소** (`min(1, 100vw / 설계폭)`) |
+| 767px 이하 | 좌표를 풀고 **세로 스택**으로 흐름 배치. 순서는 각 요소가 남긴 `order`(= 화면에서 보이던 위→아래, 왼→오른쪽). 큰 제목은 화면 폭에 맞춰 줄이고, 여러 열 그리드는 1열로 접고, 장식 도형은 숨깁니다 |
+
+비례 축소만으로 끝내지 않는 이유: 390px 에서 27% 로 줄이면 본문이 5px 이 되어 읽을 수
+없습니다. 반대로 스택으로만 풀면 태블릿에서 굳이 디자인을 버리게 됩니다.
+
+이 규칙은 `[data-ks-site]` 안에서만 적용됩니다 — 에디터 캔버스에 걸리면 드래그 좌표
+계산이 실제 위치와 어긋나기 때문입니다.
+
 ## 캔버스를 넓게 쓰기
 
 좌우 패널이 화면 폭을 크게 잡아먹으면 자동 배율이 50% 아래로 떨어져 디자인이
@@ -259,17 +277,27 @@ DeepL 은 **태국어·베트남어를 지원하지 않아** 해당 언어는 �
 ## 테스트
 
 ```bash
-npm test          # 87개 테스트
+npm test           # 187개 테스트
 npm run test:watch
+npm run a11y       # 실행 중인 사이트에 axe-core (WCAG 2.1 AA) — 위반 시 종료 코드 1
 ```
 
 | 파일 | 검증 대상 |
 |---|---|
 | `test/sanitize.test.ts` | XSS 차단 + 정상 서식·다국어 보존 |
-| `test/i18n.test.ts` | 폴백 체인, 원문 변경(stale) 감지, Accept-Language |
+| `test/sanitizePage.test.ts` | 저장 경로 전체 정화 — 다국어 슬롯·중첩 zone·Embed raw HTML |
+| `test/i18n.test.ts` | 폴백 체인, 원문 변경(stale) 감지, Accept-Language, `?lang=` 유지 |
+| `test/id.test.ts` | 경로 정규화(한글·퍼센트 인코딩·NFC), 슬러그 |
 | `test/style.test.ts` | absolute/flex/grid 레이아웃 분기, 반응형 상속, hover 규칙 |
+| `test/templates.test.ts` | 7개 템플릿의 구조·다국어·원문 언어 결정 |
 | `test/translate.test.ts` | 번역 대상 수집, 검수본 보존, 중첩 zone 왕복 |
+| `test/pipeline.test.ts` | 자동 번역 파이프라인 (원문 제외, HTML 분리, 실패 격리, 진행률) |
 | `test/analytics.test.ts` | 클릭 점유율·CTR, 스크롤 퍼널, 섹션 이탈률, 바운스 |
+| `test/fsDriver.test.ts` | 파일 드라이버 — 시드, 경로 충돌, 재기동 후 잔존, 문의 상태 변경 |
+| `test/rateLimit.test.ts` | 창 제한과 만료 항목 청소(메모리 누수 방지) |
+
+브라우저가 필요한 것(에디터 드래그, 히트맵 좌표, 모바일 레이아웃, 접근성)은
+Playwright 로 실제 렌더를 띄워 확인했습니다. `npm run a11y` 가 그중 접근성 부분입니다.
 
 ## Netlify 배포
 
@@ -410,6 +438,9 @@ curl https://your-app.vercel.app/api/health
 
 - 제출 → `POST /api/inquiry` (공개, IP당 10분 8건 제한)
 - 조회 → `GET /api/inquiry` (관리자 전용)
+- 상태 변경 → `PATCH /api/inquiry` (관리자 전용)
+- **관리 화면 → `/admin/inquiries`** — 목록·상세·검색, 신규/확인함/보관 상태,
+  CSV 내보내기(엑셀에서 한글이 깨지지 않도록 BOM 포함). 에디터 상단 [문의] 버튼.
 - UTM 파라미터가 함께 저장되어 **어느 채널의 유입이 문의로 이어졌는지** 추적됩니다
 - 제출 버튼은 전환 목표로 집계되어 히트맵/퍼널에 나타납니다
 
@@ -446,9 +477,12 @@ curl https://your-app.vercel.app/api/health
 
 ```bash
 npm run dev        # 개발 서버
-npm run build      # 프로덕션 빌드 (발행 페이지는 정적 생성)
+npm run build      # 프로덕션 빌드
+npm start          # 프로덕션 서버
+npm test           # 단위 테스트
 npm run typecheck  # 타입 검사
 npm run lint
+npm run a11y       # 접근성 점검 (서버가 떠 있어야 함, BASE_URL 로 주소 변경)
 ```
 
 ## 보안
