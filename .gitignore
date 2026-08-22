@@ -7,3 +7,6 @@ build/
 next-env.d.ts
 .DS_Store
 .data/
+
+# 실험용 임시 스크립트 (브라우저 검증 등)
+*.tmp.mjs
