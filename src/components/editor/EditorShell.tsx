@@ -47,6 +47,7 @@ export function EditorShell({
   const heatmapEnabled = useEditorStore((s) => s.heatmapEnabled);
   const heatmapRange = useEditorStore((s) => s.heatmapRange);
   const analytics = useEditorStore((s) => s.analytics);
+  const dirtyPageIds = useEditorStore((s) => s.dirtyPageIds);
   const setAnalytics = useEditorStore((s) => s.setAnalytics);
   const setAnalyticsLoading = useEditorStore((s) => s.setAnalyticsLoading);
   const setAnalyticsError = useEditorStore((s) => s.setAnalyticsError);
@@ -94,23 +95,35 @@ export function EditorShell({
     };
   }, [needAnalytics, activePage?.id, heatmapRange, setAnalytics, setAnalyticsLoading, setAnalyticsError]);
 
+  /**
+   * 저장 — 손댄 페이지를 전부 보낸다.
+   * 예전에는 '지금 보고 있는 페이지' 하나만 보냈다. 여러 페이지를 고친 뒤
+   * 저장하면 나머지는 조용히 사라졌다(dirty 표시는 하나뿐이라 저장된 것처럼
+   * 보인다). 발행은 지금 보고 있는 페이지에만 적용한다.
+   */
   const handleSave = async (publish?: boolean) => {
     if (!activePage) return;
     setSaving(true);
     setSaveError(null);
     try {
       const content = liveData.current ?? activePage.content;
-      const page: PageDocument = {
+      const now = new Date().toISOString();
+
+      const active: PageDocument = {
         ...activePage,
         content,
         status: publish ? 'published' : activePage.status,
-        updatedAt: new Date().toISOString(),
+        updatedAt: now,
       };
+      const others = pages.filter((p) => p.id !== activePage.id && dirtyPageIds.includes(p.id));
+      const payload = [active, ...others];
+
       await fetchJson('/api/pages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ page }),
+        body: JSON.stringify(payload.length === 1 ? { page: active } : { pages: payload }),
       });
+
       commitContent(activePage.id, content);
       if (publish) updatePageMeta(activePage.id, { status: 'published' });
       markSaved();

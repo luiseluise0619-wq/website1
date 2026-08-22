@@ -44,6 +44,8 @@ export interface EditorState {
   analyticsError: string | null;
 
   dirty: boolean;
+  /** 저장이 필요한 페이지 id — 저장은 '지금 보고 있는 페이지'만이 아니다 */
+  dirtyPageIds: string[];
   saving: boolean;
   lastSavedAt: string | null;
 
@@ -101,13 +103,16 @@ function defaultRange() {
 }
 
 export const useEditorStore = create<EditorStore>((set, get) => {
+  /** 바뀐 페이지를 저장 대기 목록에 넣는다 (중복 없이) */
+  const markDirty = (ids: string[], pageId: string) => (ids.includes(pageId) ? ids : [...ids, pageId]);
+
   const patchPage = (pageId: string, fn: (page: PageDocument) => PageDocument) =>
     set((s) => {
       const index = s.pages.findIndex((p) => p.id === pageId);
       if (index === -1) return {};
       const pages = [...s.pages];
       pages[index] = { ...fn(pages[index]), updatedAt: new Date().toISOString() };
-      return { pages, dirty: true };
+      return { pages, dirty: true, dirtyPageIds: markDirty(s.dirtyPageIds, pageId) };
     });
 
   return {
@@ -124,11 +129,12 @@ export const useEditorStore = create<EditorStore>((set, get) => {
     analyticsLoading: false,
     analyticsError: null,
     dirty: false,
+    dirtyPageIds: [],
     saving: false,
     lastSavedAt: null,
     pickedElementId: null,
 
-    loadPages: (pages) => set({ pages, activePageId: pages[0]?.id ?? null, dirty: false }),
+    loadPages: (pages) => set({ pages, activePageId: pages[0]?.id ?? null, dirty: false, dirtyPageIds: [] }),
 
     setActivePage: (activePageId) => set({ activePageId, analytics: null, analyticsError: null }),
 
@@ -153,7 +159,7 @@ export const useEditorStore = create<EditorStore>((set, get) => {
         updatedAt: now,
         revision: 1,
       };
-      set((s) => ({ pages: [...s.pages, page], activePageId: id, dirty: true }));
+      set((s) => ({ pages: [...s.pages, page], activePageId: id, dirty: true, dirtyPageIds: markDirty(s.dirtyPageIds, id) }));
       return id;
     },
 
@@ -182,7 +188,7 @@ export const useEditorStore = create<EditorStore>((set, get) => {
         content: JSON.parse(JSON.stringify(source.content)) as PageDocument['content'],
         seo: JSON.parse(JSON.stringify(source.seo)) as PageDocument['seo'],
       };
-      set((s) => ({ pages: [...s.pages, page], activePageId: id, dirty: true }));
+      set((s) => ({ pages: [...s.pages, page], activePageId: id, dirty: true, dirtyPageIds: markDirty(s.dirtyPageIds, id) }));
       return id;
     },
 
@@ -215,7 +221,13 @@ export const useEditorStore = create<EditorStore>((set, get) => {
     deletePage: (pageId) =>
       set((s) => {
         const pages = s.pages.filter((p) => p.id !== pageId);
-        return { pages, activePageId: s.activePageId === pageId ? pages[0]?.id ?? null : s.activePageId, dirty: true };
+        return {
+          pages,
+          activePageId: s.activePageId === pageId ? pages[0]?.id ?? null : s.activePageId,
+          dirty: true,
+          // 지워진 페이지는 저장 대기 목록에서도 빠져야 한다(서버에는 이미 없다)
+          dirtyPageIds: s.dirtyPageIds.filter((id) => id !== pageId),
+        };
       }),
 
     commitContent: (pageId, content) =>
@@ -235,7 +247,7 @@ export const useEditorStore = create<EditorStore>((set, get) => {
     setPickedElement: (pickedElementId) => set({ pickedElementId }),
 
     setSaving: (saving) => set({ saving }),
-    markSaved: () => set({ dirty: false, saving: false, lastSavedAt: new Date().toISOString() }),
+    markSaved: () => set({ dirty: false, dirtyPageIds: [], saving: false, lastSavedAt: new Date().toISOString() }),
 
     activePage: () => {
       const { pages, activePageId } = get();

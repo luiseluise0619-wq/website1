@@ -62,8 +62,18 @@ export const fsPageStorage: PageStorage = {
   },
 
   async saveAll(pages) {
+    /* '넘긴 페이지들을 저장한다'이지 '이 목록으로 통째로 바꾼다'가 아니다.
+       예전처럼 파일을 통째로 덮어쓰면, 에디터가 고친 페이지만 보냈을 때
+       나머지 페이지가 전부 사라진다. Postgres 드라이버도 upsert 다. */
     const normalized = pages.map((p) => ({ ...p, path: normalizePath(p.path) }));
-    await writePages(normalized);
+    const existing = await readPages();
+    const merged = [...existing];
+    for (const page of normalized) {
+      const index = merged.findIndex((p) => p.id === page.id);
+      if (index === -1) merged.push(page);
+      else merged[index] = page;
+    }
+    await writePages(merged);
     return normalized;
   },
 

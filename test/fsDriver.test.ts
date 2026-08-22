@@ -76,6 +76,28 @@ describe('fsPageStorage', () => {
     await expect(fsPageStorage.savePage(page('침입자', { path: '/brand/beauty' }))).rejects.toThrow(/이미 사용 중/);
   });
 
+  it('여러 건 저장은 덮어쓰기가 아니라 병합이다 (안 보낸 페이지가 사라지면 안 된다)', async () => {
+    const { fsPageStorage } = await driver();
+    const before = await fsPageStorage.listPages();
+
+    await fsPageStorage.saveAll([page('bulk1'), page('bulk2')]);
+
+    const after = await fsPageStorage.listPages();
+    expect(after.length).toBe(before.length + 2);
+    expect(after.find((p) => p.id === 'bulk1')).toBeTruthy();
+    // 시드 페이지가 그대로 남아 있어야 한다
+    expect(after.some((p) => p.path === '/brand/beauty')).toBe(true);
+  });
+
+  it('여러 건 저장에서 같은 id 는 갱신된다', async () => {
+    const { fsPageStorage } = await driver();
+    await fsPageStorage.saveAll([page('dup2', { title: '처음' })]);
+    await fsPageStorage.saveAll([page('dup2', { title: '나중' })]);
+    const all = await fsPageStorage.listPages();
+    expect(all.filter((p) => p.id === 'dup2')).toHaveLength(1);
+    expect((await fsPageStorage.getPageById('dup2'))?.title).toBe('나중');
+  });
+
   it('삭제하면 목록에서 사라진다', async () => {
     const { fsPageStorage } = await driver();
     await fsPageStorage.savePage(page('gone'));
