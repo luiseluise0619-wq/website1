@@ -22,6 +22,36 @@ export interface EditorToolbarProps {
   onToggleWide?: () => void;
 }
 
+/**
+ * 번역 결과 한 줄 요약.
+ * 같은 원인(키 미설정 등)으로 다섯 언어가 모두 실패하면 같은 문장이 다섯 번
+ * 반복돼 정작 무엇을 해야 하는지가 묻힌다 — 원인별로 묶어서 보여 준다.
+ */
+function summarizeTranslation(result: {
+  translatedCount: number;
+  skipped: number;
+  errors: Array<{ locale: LocaleCode; message: string }>;
+}): string {
+  if (!result.errors.length) {
+    return `${result.translatedCount}건 번역 완료 (검수 완료분 ${result.skipped}건은 유지)`;
+  }
+
+  const byMessage = new Map<string, LocaleCode[]>();
+  for (const e of result.errors) {
+    const locales = byMessage.get(e.message) ?? [];
+    if (!locales.includes(e.locale)) locales.push(e.locale);
+    byMessage.set(e.message, locales);
+  }
+  const detail = [...byMessage.entries()]
+    .map(([message, locales]) => `${locales.join('·')}: ${message}`)
+    .join(' / ');
+
+  // 한 건도 못 채웠으면 '완료' 라고 말하지 않는다
+  return result.translatedCount
+    ? `${result.translatedCount}건 번역 완료 · 일부 실패 — ${detail}`
+    : `번역 실패 — ${detail}`;
+}
+
 export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onToggleWide }: EditorToolbarProps) {
   const page = useEditorStore((s) => s.activePage());
   const editingLocale = useEditorStore((s) => s.editingLocale);
@@ -60,11 +90,7 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
         onProgress: (done, total) => setTranslating(true, { done, total }),
       });
       onReplaceData(result.data);
-      setMessage(
-        result.errors.length
-          ? `${result.translatedCount}건 번역 완료 · 실패: ${result.errors.map((e) => `${e.locale}(${e.message})`).join(', ')}`
-          : `${result.translatedCount}건 번역 완료 (검수 완료분 ${result.skipped}건은 유지)`,
-      );
+      setMessage(summarizeTranslation(result));
     } catch (err) {
       setMessage(err instanceof Error ? err.message : '번역 실패');
     } finally {

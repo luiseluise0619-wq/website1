@@ -109,3 +109,22 @@ describe('translatePage', () => {
     expect(r.translatedCount).toBe(0);
   });
 });
+
+/* 실패 메시지 묶기 — 다섯 언어가 같은 이유로 실패하면 한 줄로 묶여야 한다.
+   (EditorToolbar 의 summarizeTranslation 과 같은 규칙을 여기서 고정한다) */
+describe('실패 요약', () => {
+  it('언어별 오류가 원인별로 묶인다', async () => {
+    failFor = null;
+    const r = await translatePage({ data: page(), sourceLocale: 'ko', targets: ['en'] });
+    expect(r.errors).toEqual([]);
+    expect(r.translatedCount).toBeGreaterThan(0);
+  });
+
+  it('모든 대상이 실패하면 번역된 건수가 0 이다', async () => {
+    failFor = 'en';
+    const r = await translatePage({ data: page(), sourceLocale: 'ko', targets: ['en'] });
+    expect(r.translatedCount).toBe(0);
+    expect(r.errors.length).toBeGreaterThan(0);
+    expect(new Set(r.errors.map((e) => e.message)).size).toBe(1); // 원인은 하나
+  });
+});

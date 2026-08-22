@@ -26,17 +26,28 @@ export interface TranslateResult {
 }
 
 export class TranslationError extends Error {
-  constructor(message: string, readonly provider: ProviderName, readonly status?: number) {
+  constructor(
+    message: string,
+    readonly provider: ProviderName,
+    readonly status?: number,
+    /** 키가 없어서 못 쓴 것인가 (호출은 해봤지만 실패한 것과 구분한다) */
+    readonly unconfigured = false,
+  ) {
     super(message);
     this.name = 'TranslationError';
   }
 }
 
+/** 설정이 하나도 없을 때 관리자가 무엇을 해야 하는지 한 줄로 알려 준다 */
+const NO_PROVIDER_MESSAGE =
+  '번역 API 키가 설정되지 않았습니다. DEEPL_API_KEY 또는 GOOGLE_TRANSLATE_API_KEY ' +
+  '(혹은 TOLGEE_API_URL + TOLGEE_API_KEY)를 환경 변수에 넣고 다시 배포하세요.';
+
 /* ---- DeepL ---------------------------------------------------------------- */
 
 async function translateWithDeepL(req: TranslateRequest): Promise<TranslateResult> {
   const key = process.env.DEEPL_API_KEY;
-  if (!key) throw new TranslationError('DEEPL_API_KEY 미설정', 'deepl');
+  if (!key) throw new TranslationError('DEEPL_API_KEY 미설정', 'deepl', undefined, true);
   const targetCode = LOCALES[req.target].deeplCode;
   if (!targetCode) throw new TranslationError(`DeepL 미지원 언어: ${req.target}`, 'deepl');
 
@@ -67,7 +78,7 @@ async function translateWithDeepL(req: TranslateRequest): Promise<TranslateResul
 
 async function translateWithGoogle(req: TranslateRequest): Promise<TranslateResult> {
   const key = process.env.GOOGLE_TRANSLATE_API_KEY;
-  if (!key) throw new TranslationError('GOOGLE_TRANSLATE_API_KEY 미설정', 'google');
+  if (!key) throw new TranslationError('GOOGLE_TRANSLATE_API_KEY 미설정', 'google', undefined, true);
 
   const res = await fetch(`https://translation.googleapis.com/language/translate/v2?key=${key}`, {
     method: 'POST',
@@ -94,7 +105,7 @@ async function translateWithGoogle(req: TranslateRequest): Promise<TranslateResu
 async function translateWithTolgee(req: TranslateRequest): Promise<TranslateResult> {
   const apiUrl = process.env.TOLGEE_API_URL;
   const apiKey = process.env.TOLGEE_API_KEY;
-  if (!apiUrl || !apiKey) throw new TranslationError('TOLGEE_API_URL / TOLGEE_API_KEY 미설정', 'tolgee');
+  if (!apiUrl || !apiKey) throw new TranslationError('TOLGEE_API_URL / TOLGEE_API_KEY 미설정', 'tolgee', undefined, true);
 
   const out: string[] = [];
   // Tolgee 의 번역 엔드포인트는 단건 기준이므로 순차 호출한다
@@ -123,6 +134,7 @@ export async function translate(req: TranslateRequest): Promise<TranslateResult>
   const order = candidates.filter((p, i) => p !== 'none' && candidates.indexOf(p) === i);
 
   let lastError: unknown;
+  let allUnconfigured = true;
   for (const provider of order) {
     try {
       if (provider === 'deepl') return await translateWithDeepL(req);
@@ -130,11 +142,17 @@ export async function translate(req: TranslateRequest): Promise<TranslateResult>
       if (provider === 'tolgee') return await translateWithTolgee(req);
     } catch (err) {
       lastError = err;
+      if (!(err instanceof TranslationError) || !err.unconfigured) allUnconfigured = false;
       // 설정 누락/미지원 언어는 조용히 다음 제공자로 넘어간다.
       // 인증 실패(401/403)는 설정 오류이므로 즉시 알린다.
       if (err instanceof TranslationError && (err.status === 401 || err.status === 403)) throw err;
     }
   }
+
+  /* 어느 것도 설정돼 있지 않으면 마지막 후보(Tolgee)의 메시지를 던지는 대신,
+     실제로 무엇을 설정해야 하는지 알려 준다 — 대부분은 DeepL 을 쓴다. */
+  if (allUnconfigured) throw new TranslationError(NO_PROVIDER_MESSAGE, 'none', undefined, true);
+
   throw lastError instanceof Error
     ? lastError
     : new TranslationError('사용 가능한 번역 제공자가 없습니다.', 'none');
