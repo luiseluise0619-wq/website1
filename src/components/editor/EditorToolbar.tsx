@@ -72,16 +72,29 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
 
   const [message, setMessage] = React.useState<string | null>(null);
 
+  /* 이 페이지가 노출하는 언어만 다룬다(SEO 탭에서 지정). 끈 언어까지 번역하면
+     보이지도 않을 문장에 번역 API 비용을 쓰게 된다. */
+  const enabledLocales = React.useMemo<LocaleCode[]>(
+    () => (page?.enabledLocales?.length ? page.enabledLocales : LOCALE_ORDER),
+    [page?.enabledLocales],
+  );
+
   const coverage = React.useMemo(() => {
     if (!page) return [];
-    return coverageReport(page.content, page.sourceLocale, LOCALE_ORDER);
+    return coverageReport(page.content, page.sourceLocale, enabledLocales);
     // content 가 바뀔 때마다 다시 계산 (revision 으로 추적)
-  }, [page?.content, page?.revision, page?.sourceLocale]);
+  }, [page?.content, page?.revision, page?.sourceLocale, enabledLocales]);
+
+  /* 노출을 끈 언어를 편집 중이었다면 원문 언어로 돌려놓는다 —
+     보이지 않는 슬롯을 고치고 있으면 아무 일도 안 일어나는 것처럼 보인다. */
+  React.useEffect(() => {
+    if (page && !enabledLocales.includes(editingLocale)) setEditingLocale(page.sourceLocale);
+  }, [page, enabledLocales, editingLocale, setEditingLocale]);
 
   /** 페이지 전체 자동번역 */
   const handleTranslateAll = async () => {
     if (!page) return;
-    const targets = LOCALE_ORDER.filter((l) => l !== page.sourceLocale);
+    const targets = enabledLocales.filter((l) => l !== page.sourceLocale);
     setTranslating(true, { done: 0, total: targets.length });
     setMessage(null);
     try {
@@ -160,7 +173,7 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
 
       {/* --- 언어 --- */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-        {LOCALE_ORDER.map((locale) => {
+        {enabledLocales.map((locale) => {
           const cov = coverage.find((c) => c.locale === locale);
           const complete = cov ? cov.total === 0 || cov.missing + cov.stale === 0 : true;
           return (
