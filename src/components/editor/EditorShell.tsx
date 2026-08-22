@@ -29,7 +29,16 @@ export interface StorageStatus {
   hint?: string;
 }
 
-export function EditorShell({ initialPages, storage }: { initialPages: PageDocument[]; storage?: StorageStatus }) {
+export function EditorShell({
+  initialPages,
+  storage,
+  newInquiries = 0,
+}: {
+  initialPages: PageDocument[];
+  storage?: StorageStatus;
+  /** 아직 확인하지 않은 문의 수 — 상단 [문의] 배지 */
+  newInquiries?: number;
+}) {
   const pages = useEditorStore((s) => s.pages);
   const activePage = useEditorStore((s) => s.activePage());
   const loadPages = useEditorStore((s) => s.loadPages);
@@ -177,6 +186,7 @@ export function EditorShell({ initialPages, storage }: { initialPages: PageDocum
             getCurrentData={() => liveData.current ?? activePage.content}
             onReplaceData={replaceData}
             onSave={handleSave}
+            newInquiries={newInquiries}
             wide={wide}
             onToggleWide={() => {
               // 넓게 볼 때는 페이지 목록도 함께 접는 편이 자연스럽다

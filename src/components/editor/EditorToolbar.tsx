@@ -20,6 +20,8 @@ export interface EditorToolbarProps {
   /** 좌측 패널들을 접어 캔버스를 넓히는 모드 */
   wide?: boolean;
   onToggleWide?: () => void;
+  /** 아직 확인하지 않은 문의 수 */
+  newInquiries?: number;
 }
 
 /**
@@ -52,7 +54,7 @@ function summarizeTranslation(result: {
     : `번역 실패 — ${detail}`;
 }
 
-export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onToggleWide }: EditorToolbarProps) {
+export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onToggleWide, newInquiries = 0 }: EditorToolbarProps) {
   const page = useEditorStore((s) => s.activePage());
   const editingLocale = useEditorStore((s) => s.editingLocale);
   const setEditingLocale = useEditorStore((s) => s.setEditingLocale);
@@ -213,8 +215,28 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
           미리보기 ↗
         </a>
         {/* 접수된 문의를 볼 곳이 없으면 BUSINESS 폼은 있으나 마나다 */}
-        <a href="/admin/inquiries" style={{ ...btn, textDecoration: 'none' }}>
+        <a
+          href="/admin/inquiries"
+          title={newInquiries ? `확인하지 않은 문의 ${newInquiries}건` : '접수된 문의 보기'}
+          style={{ ...btn, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+        >
           문의
+          {newInquiries ? (
+            <span
+              style={{
+                minWidth: 18,
+                padding: '1px 5px',
+                borderRadius: 999,
+                background: '#ef4444',
+                color: '#fff',
+                fontSize: 11,
+                fontWeight: 700,
+                textAlign: 'center',
+              }}
+            >
+              {newInquiries > 99 ? '99+' : newInquiries}
+            </span>
+          ) : null}
         </a>
         <button type="button" onClick={() => onSave(false)} disabled={saving} style={btn}>
           {saving ? '저장 중…' : dirty ? '저장 *' : '저장됨'}
