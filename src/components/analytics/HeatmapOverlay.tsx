@@ -355,7 +355,7 @@ export function HeatmapOverlay({ frameSelector = CANVAS_FRAME_SELECTOR, containe
       {/* --- 범례 & 요약 --- */}
       <div style={panelStyle}>
         <div style={{ fontWeight: 700, marginBottom: 6 }}>
-          히트맵 · {METRIC_LABEL[metric]}
+          히트맵 · {pixelMode ? '클릭 좌표(픽셀)' : METRIC_LABEL[metric]}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
           <span style={{ fontSize: 10, opacity: 0.7 }}>낮음</span>
@@ -373,6 +373,13 @@ export function HeatmapOverlay({ frameSelector = CANVAS_FRAME_SELECTOR, containe
         <Row label="세션" value={summary.sessions.toLocaleString()} />
         <Row label="총 클릭" value={summary.totalClicks.toLocaleString()} />
         <Row label="측정 요소" value={`${tracked.length}개${untracked ? ` (데이터 없음 ${untracked})` : ''}`} />
+        {/* 픽셀 모드인데 좌표가 없으면 화면이 그냥 비어 보인다 — 이유를 적어 준다 */}
+        {pixelMode ? (
+          <Row
+            label="클릭 좌표"
+            value={summary.clickPoints?.length ? `${summary.clickPoints.length}곳` : '기록 없음'}
+          />
+        ) : null}
       </div>
     </div>
   );
