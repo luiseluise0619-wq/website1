@@ -7,6 +7,7 @@ import {
   ShoppingBag, Sparkles, Star, Truck,
 } from 'lucide-react';
 import { BlockShell } from './shared';
+import type { CustomField } from '@puckeditor/core';
 import type { BaseBlockProps } from '@/types/schema';
 
 /* =============================================================================
@@ -57,4 +58,69 @@ export function IconBlock(props: IconBlockProps & BaseBlockProps & { id?: string
       />
     </BlockShell>
   );
+}
+
+/* =============================================================================
+ * 아이콘 선택 필드
+ * -----------------------------------------------------------------------------
+ * 기본 select 는 'shopping-bag' 같은 키를 글자로만 보여 준다. 노코드 도구에서
+ * 아이콘을 이름으로 고르라는 것은 결국 하나씩 눌러 보라는 뜻이라, 실제 모양을
+ * 격자로 펼쳐 고르게 한다.
+ * ========================================================================== */
+
+function IconPicker({ value, onChange }: { value?: IconName; onChange: (next: IconName) => void }) {
+  const current = value && value in ICON_SET ? value : 'star';
+
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(6, 1fr)',
+        gap: 4,
+        maxHeight: 168,
+        overflowY: 'auto',
+        padding: 4,
+        border: '1px solid var(--puck-color-grey-09, #d1d5db)',
+        borderRadius: 8,
+      }}
+    >
+      {(Object.keys(ICON_SET) as IconName[]).map((name) => {
+        const Glyph = ICON_SET[name];
+        const on = name === current;
+        return (
+          <button
+            key={name}
+            type="button"
+            title={name}
+            aria-label={name}
+            aria-pressed={on}
+            onClick={() => onChange(name)}
+            style={{
+              display: 'grid',
+              placeItems: 'center',
+              aspectRatio: '1 / 1',
+              borderRadius: 6,
+              border: `1px solid ${on ? '#3b82f6' : 'transparent'}`,
+              background: on ? 'rgba(59,130,246,.14)' : 'transparent',
+              cursor: 'pointer',
+              color: 'inherit',
+            }}
+          >
+            <Glyph size={18} strokeWidth={2} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Puck 필드로 쓰는 형태 — config 의 icon 필드에 그대로 넣는다 */
+export function iconField(label: string): CustomField<IconName> {
+  return {
+    type: 'custom',
+    label,
+    render: ({ value, onChange }) => (
+      <IconPicker value={value as IconName | undefined} onChange={(next) => onChange(next)} />
+    ),
+  };
 }

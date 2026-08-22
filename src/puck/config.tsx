@@ -17,10 +17,10 @@ import {
 } from './blocks';
 import { FormBlock, type FormBlockProps } from './blocks/FormBlock';
 import { CarouselBlock, type CarouselBlockProps } from './blocks/CarouselBlock';
-import { ICON_OPTIONS, IconBlock, type IconBlockProps } from './blocks/IconBlock';
+import { IconBlock, iconField, type IconBlockProps } from './blocks/IconBlock';
 import { CanvasScrollFix } from './blocks/CanvasScrollFix';
 import { localizedText } from './fields/LocalizedTextField';
-import { placementField, styleField } from './fields/StyleFields';
+import { colorField, placementField, styleField } from './fields/StyleFields';
 import type {
   BaseBlockProps,
   ContainerProps,
@@ -172,7 +172,7 @@ export const puckConfig: Config<KsohoBlocks, KsohoRootProps> = {
           ],
         },
         thickness: { type: 'number', label: '두께' },
-        color: { type: 'text', label: '색상' },
+        color: colorField('색상'),
         ...commonFields,
       },
       defaultProps: { ...commonDefaults, orientation: 'horizontal', thickness: 1, color: '#e5e7eb', name: 'Divider' },
@@ -344,7 +344,7 @@ export const puckConfig: Config<KsohoBlocks, KsohoRootProps> = {
             { label: '커스텀 SVG', value: 'svg' },
           ],
         },
-        fill: { type: 'text', label: '채우기 색' },
+        fill: colorField('채우기 색'),
         stroke: { type: 'text', label: '선 색' },
         strokeWidth: { type: 'number', label: '선 두께' },
         svgPath: { type: 'textarea', label: 'SVG path (d)' },
@@ -379,9 +379,9 @@ export const puckConfig: Config<KsohoBlocks, KsohoRootProps> = {
     Icon: {
       label: '아이콘',
       fields: {
-        icon: { type: 'select', label: '아이콘', options: ICON_OPTIONS },
+        icon: iconField('아이콘'),
         size: { type: 'number', label: '크기(px)' },
-        color: { type: 'text', label: '색상' },
+        color: colorField('색상'),
         strokeWidth: { type: 'number', label: '선 두께' },
         ...commonFields,
       },

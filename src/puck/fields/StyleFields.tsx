@@ -217,3 +217,17 @@ export function placementField(): CustomField<FreePlacement | undefined> {
     },
   };
 }
+
+/**
+ * 단일 색상 필드 — 아이콘·구분선·도형처럼 스타일 인스펙터 밖에서 색 하나만
+ * 받는 자리에 쓴다. 예전에는 text 입력이라 '#111827' 을 직접 쳐야 했다.
+ */
+export function colorField<T extends string | undefined = string | undefined>(label: string): CustomField<T> {
+  return {
+    type: 'custom',
+    label,
+    render: ({ value, onChange }) => (
+      <ColorInput label={label} value={value as string | undefined} onChange={(next) => onChange(next as T)} />
+    ),
+  };
+}
