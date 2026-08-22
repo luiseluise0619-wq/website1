@@ -168,7 +168,7 @@ export function EditorShell({ initialPages, storage }: { initialPages: PageDocum
               {treeOpen ? '⟨' : '⟩'}
             </button>
           </div>
-          {treeOpen ? <PageTree /> : null}
+          {treeOpen ? <PageTree onError={setSaveError} /> : null}
         </aside>
 
         {/* ============ 중앙: 툴바 + Puck 캔버스 ============ */}

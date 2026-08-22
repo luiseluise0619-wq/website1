@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { useEditorStore } from '@/store/editorStore';
+import { fetchJson } from '@/lib/fetchJson';
 import { NAVIGATION } from '@/data/navigation';
 import { NewPageDialog, type NewPageResult } from './NewPageDialog';
 import type { NavNode, PageDocument } from '@/types/schema';
@@ -11,7 +12,12 @@ import type { NavNode, PageDocument } from '@/types/schema';
  * 메뉴에는 있는데 페이지가 없으면 '＋ 생성' 으로 즉시 만들 수 있다.
  * ========================================================================== */
 
-export function PageTree() {
+export interface PageTreeProps {
+  /** 삭제 실패를 화면에 알리기 위해 부모(EditorShell)의 배너를 쓴다 */
+  onError?: (message: string) => void;
+}
+
+export function PageTree({ onError }: PageTreeProps = {}) {
   const pages = useEditorStore((s) => s.pages);
   const activePageId = useEditorStore((s) => s.activePageId);
   const setActivePage = useEditorStore((s) => s.setActivePage);
@@ -26,6 +32,17 @@ export function PageTree() {
   const handleCreate = (result: NewPageResult) => {
     setDialog(null);
     createPage(result);
+  };
+
+  /* 삭제는 서버까지 지워야 한다. 화면에서만 지우면 새로고침에 되살아나고,
+     공개 사이트에서는 계속 서빙된다 — '지웠는데 아직 보인다'가 된다. */
+  const handleDelete = async (pageId: string) => {
+    try {
+      await fetchJson(`/api/pages/${encodeURIComponent(pageId)}`, { method: 'DELETE' });
+      deletePage(pageId);
+    } catch (err) {
+      onError?.(err instanceof Error ? err.message : '페이지를 삭제하지 못했습니다.');
+    }
   };
 
   const matches = (text: string) => !filter || text.toLowerCase().includes(filter.toLowerCase());
@@ -52,7 +69,7 @@ export function PageTree() {
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 6px' }}>
         {NAVIGATION.map((node) => (
           <div key={node.id} style={{ marginBottom: 6 }}>
-            <NavRow node={node} page={byPath.get(node.path ?? '')} depth={0} onCreate={(n) => setDialog({ preset: n })} activePageId={activePageId} onSelect={setActivePage} onDelete={deletePage} visible={matches(node.label)} />
+            <NavRow node={node} page={byPath.get(node.path ?? '')} depth={0} onCreate={(n) => setDialog({ preset: n })} activePageId={activePageId} onSelect={setActivePage} onDelete={handleDelete} visible={matches(node.label)} />
             {node.children?.map((child) =>
               matches(child.label) || matches(node.label) ? (
                 <NavRow
@@ -63,7 +80,7 @@ export function PageTree() {
                   onCreate={(node) => setDialog({ preset: node })}
                   activePageId={activePageId}
                   onSelect={setActivePage}
-                  onDelete={deletePage}
+                  onDelete={handleDelete}
                   visible
                 />
               ) : null,
@@ -72,7 +89,7 @@ export function PageTree() {
         ))}
 
         {/* --- IA 에 없는 커스텀 페이지 --- */}
-        <CustomPages pages={pages} activePageId={activePageId} onSelect={setActivePage} onDelete={deletePage} />
+        <CustomPages pages={pages} activePageId={activePageId} onSelect={setActivePage} onDelete={handleDelete} />
       </div>
 
       <button type="button" onClick={() => setDialog({ preset: null })} style={createBtn}>
