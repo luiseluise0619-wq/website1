@@ -82,6 +82,13 @@ export interface ScrollDepthPayload {
   documentHeight: number;
 }
 
+/**
+ * 폼 제출을 블록 → 분석 훅으로 전하는 DOM 커스텀 이벤트 이름.
+ * 블록(FormBlock)은 훅에 직접 닿을 수 없다(Puck 이 렌더하는 트리 안이다).
+ * 컨텍스트를 새로 파는 대신 window 이벤트로 느슨하게 잇는다.
+ */
+export const FORM_SUBMIT_EVENT = 'ksoho:form-submit';
+
 export type ScrollThreshold = 20 | 50 | 80 | 100;
 export const SCROLL_THRESHOLDS: ScrollThreshold[] = [20, 50, 80, 100];
 

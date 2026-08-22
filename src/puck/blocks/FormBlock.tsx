@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { FORM_SUBMIT_EVENT } from '@/types/analytics';
 import { BlockShell, useRenderCtx } from './shared';
 import { t } from '@/lib/i18n';
 import type { BaseBlockProps, LocalizedText } from '@/types/schema';
@@ -73,6 +74,18 @@ export function FormBlock(props: Props) {
       setState('done');
       setValues({});
       setConsent(false);
+
+      /* 제출이 성공한 순간만 집계한다 — 버튼 클릭(element_click)은 실패한
+         제출도 포함하므로 '문의가 실제로 접수된 수'와 다르다. */
+      window.dispatchEvent(
+        new CustomEvent(FORM_SUBMIT_EVENT, {
+          detail: {
+            elementId: props.trackingId || props.id || 'form',
+            formName: props.formName || 'inquiry',
+            goal: props.conversionGoal || undefined,
+          },
+        }),
+      );
     } catch (err) {
       setState('error');
       setError(err instanceof Error ? err.message : '문의 접수에 실패했습니다.');

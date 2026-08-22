@@ -5,7 +5,7 @@ import { DEFAULT_ANALYTICS_CONFIG, dispatchRealtime, hasConsent, initGA4, sendBa
 import { getAnonymousId, getDeviceInfo, getSessionId, getUTM, uuid } from '@/lib/analytics/identity';
 import { initPostHog, posthogPageView, sendToPostHog, setPostHogPersonProps } from '@/lib/analytics/posthog';
 import { initUmami, umamiTrack } from '@/lib/analytics/umami';
-import { SCROLL_THRESHOLDS } from '@/types/analytics';
+import { FORM_SUBMIT_EVENT, SCROLL_THRESHOLDS } from '@/types/analytics';
 import type {
   AnalyticsContext,
   AnalyticsEvent,
@@ -220,9 +220,13 @@ export function useCanvasAnalytics(options: UseCanvasAnalyticsOptions): CanvasAn
       const isInteractive = Boolean(payload.href) || el.dataset.elementType === 'Button' || el.closest('a,button');
       if (!isInteractive) track('dead_click', payload);
 
-      /* 전환 지점 */
+      /* 전환 지점.
+         폼 안쪽(제출 버튼 포함)은 여기서 세지 않는다. 폼은 접수가 성공한
+         순간에만 전환을 보낸다 — 클릭으로도 세면 한 번의 문의가 세 건으로
+         부풀고(폼 래퍼·제출 버튼·성공), 실패한 제출까지 전환이 된다. */
+      const inForm = el.dataset.elementType === 'Form' || Boolean(el.closest('form'));
       const goal = el.dataset.conversionGoal;
-      if (goal) track('conversion', { goal, elementId });
+      if (goal && !inForm) track('conversion', { goal, elementId });
     };
 
     root.addEventListener('click', onClick, { capture: true });
@@ -348,6 +352,25 @@ export function useCanvasAnalytics(options: UseCanvasAnalyticsOptions): CanvasAn
       window.removeEventListener('scroll', onScroll);
     };
   }, [enabled, track, pageId]);
+
+  /* --- 3.5 폼 제출 -----------------------------------------------------------
+     FormBlock 은 이 훅에 직접 닿을 수 없어 window 이벤트로 알려 온다.
+     제출 성공만 잡히므로 '문의가 실제로 접수된 수'가 된다. */
+  useEffect(() => {
+    if (!enabled) return;
+    const onSubmit = (e: Event) => {
+      const detail = (e as CustomEvent).detail as
+        | { elementId?: string; formName?: string; goal?: string }
+        | undefined;
+      if (!detail?.elementId) return;
+      interacted.current = true;
+      track('form_submit', { elementId: detail.elementId, formName: detail.formName });
+      // 목표명을 지정해 뒀다면 전환으로도 센다
+      if (detail.goal) track('conversion', { goal: detail.goal, elementId: detail.elementId });
+    };
+    window.addEventListener(FORM_SUBMIT_EVENT, onSubmit);
+    return () => window.removeEventListener(FORM_SUBMIT_EVENT, onSubmit);
+  }, [enabled, track]);
 
   /* --- 4. 이탈 (Drop-off) --------------------------------------------------- */
   const sendExit = useCallback(
