@@ -28,6 +28,16 @@ export interface PageRendererProps {
   analytics?: boolean;
 }
 
+/** 본문 바로가기 문구 — 방문자 언어로 보여야 의미가 있다 */
+const SKIP_LABEL = {
+  ko: '본문 바로가기',
+  en: 'Skip to content',
+  ja: 'コンテンツへスキップ',
+  zh: '跳到主要内容',
+  th: 'ข้ามไปยังเนื้อหา',
+  vi: 'Chuyển đến nội dung',
+};
+
 export function PageRenderer({ page, initialLocale, chrome = true, analytics = true }: PageRendererProps) {
   const [locale, setLocale] = React.useState<LocaleCode>(initialLocale ?? DEFAULT_LOCALE);
   const rootRef = React.useRef<HTMLDivElement>(null);
@@ -93,8 +103,17 @@ export function PageRenderer({ page, initialLocale, chrome = true, analytics = t
       {/* 추적 루트가 <main> 이면 네비게이션 클릭이 기록되지 않는다.
           어느 메뉴로 이탈했는지가 곧 IA 개선의 근거이므로 함께 감싼다. */}
       <div ref={rootRef} data-ks-site="true" data-page-id={page.id} data-locale={locale}>
-        {chrome ? <SiteNav locale={locale} activePath={page.path} onLocaleChange={handleLocaleChange} /> : null}
-        <main>
+        {chrome ? (
+          <>
+            {/* 키보드 사용자가 메뉴 32개를 지나치지 않고 본문으로 건너뛴다 */}
+            <a href="#ksoho-content" className="ksoho-skip">
+              {t(SKIP_LABEL, locale, DEFAULT_LOCALE)}
+            </a>
+            <SiteNav locale={locale} activePath={page.path} onLocaleChange={handleLocaleChange} />
+          </>
+        ) : null}
+        {/* tabIndex=-1 이 없으면 바로가기를 눌러도 포커스가 body 에 남아 다음 Tab 이 다시 메뉴로 간다 */}
+        <main id="ksoho-content" tabIndex={-1}>
           <Render config={puckConfig} data={page.content as unknown as Data} />
         </main>
       </div>

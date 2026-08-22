@@ -133,7 +133,9 @@ export function SiteNav({ locale, activePath, onLocaleChange }: SiteNavProps) {
           type="button"
           className="ksoho-mobile-toggle"
           onClick={() => setMobileOpen((v) => !v)}
-          aria-label="메뉴 열기"
+          aria-label={mobileOpen ? '메뉴 닫기' : '메뉴 열기'}
+          aria-expanded={mobileOpen}
+          aria-controls="ksoho-mobile-menu"
           data-no-track="true"
           style={{ display: 'none', background: 'none', border: 0, color: 'inherit', fontSize: 20, cursor: 'pointer' }}
         >
@@ -143,7 +145,7 @@ export function SiteNav({ locale, activePath, onLocaleChange }: SiteNavProps) {
 
       {/* --- 모바일 메뉴 --- */}
       {mobileOpen ? (
-        <div style={{ padding: '8px 24px 20px', borderTop: '1px solid rgba(255,255,255,.08)' }}>
+        <div id="ksoho-mobile-menu" style={{ padding: '8px 24px 20px', borderTop: '1px solid rgba(255,255,255,.08)' }}>
           {NAVIGATION.map((node) => (
             <details key={node.id} style={{ padding: '6px 0' }}>
               <summary style={{ fontSize: 14, fontWeight: 700, cursor: 'pointer', padding: '6px 0' }}>{label(node)}</summary>

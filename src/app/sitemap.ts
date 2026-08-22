@@ -11,10 +11,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const pages = await listPages();
   const base = siteUrl();
 
+  /* 페이지가 알리는 canonical 과 같은 문자열이어야 한다. Next 는 루트의
+     canonical 을 'https://x' (뒤 슬래시 없음)로 만드므로 여기서도 맞춘다. */
+  const urlOf = (path: string) => `${base}${path === '/' ? '' : path}`;
+
   return pages
     .filter((page) => page.status === 'published' && !page.seo.noindex)
     .map((page) => ({
-      url: `${base}${page.path === '/' ? '' : page.path}`,
+      url: urlOf(page.path),
       lastModified: new Date(page.updatedAt),
       changeFrequency: 'weekly' as const,
       priority: page.path === '/' ? 1 : page.path.split('/').length > 2 ? 0.6 : 0.8,
@@ -23,7 +27,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         languages: Object.fromEntries(
           (page.enabledLocales ?? LOCALE_ORDER).map((locale) => [
             LOCALES[locale].bcp47,
-            `${base}${page.path === '/' ? '' : page.path}?lang=${locale}`,
+            `${urlOf(page.path)}?lang=${locale}`,
           ]),
         ),
       },

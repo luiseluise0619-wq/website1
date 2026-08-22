@@ -8,7 +8,7 @@ export default function NotFound() {
         <p style={{ color: '#8b95a7', marginTop: 8 }}>요청하신 페이지가 아직 발행되지 않았습니다.</p>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 20 }}>
           <Link href="/" style={linkStyle}>홈으로</Link>
-          <Link href="/admin/editor" style={{ ...linkStyle, background: '#3b82f6', color: '#fff', border: 0 }}>
+          <Link href="/admin/editor" style={{ ...linkStyle, background: '#1d4ed8', color: '#fff', border: 0 }}>
             에디터에서 만들기
           </Link>
         </div>

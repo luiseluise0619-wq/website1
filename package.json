@@ -10,7 +10,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "a11y": "node scripts/a11y.mjs"
   },
   "dependencies": {
     "@puckeditor/core": "^0.23.0",
@@ -29,6 +30,7 @@
     "zustand": "4.5.4"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@netlify/plugin-nextjs": "^5.15.13",
     "@types/node": "20.14.10",
     "@types/pg": "^8.23.1",

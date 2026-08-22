@@ -175,3 +175,33 @@ html, body {
     padding-right: 0;
   }
 }
+
+/* 본문 바로가기 — 평소에는 보이지 않다가 탭 포커스를 받으면 나타난다 */
+.ksoho-skip {
+  position: absolute;
+  left: 12px;
+  top: -60px;
+  z-index: 1000;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: #1d4ed8;
+  color: #fff;
+  font-size: 14px;
+  text-decoration: none;
+  transition: top 0.15s ease;
+}
+.ksoho-skip:focus {
+  top: 12px;
+}
+
+/* 키보드 초점 표시 — 마우스 클릭에는 나타나지 않는다 */
+[data-ks-site] a:focus-visible,
+[data-ks-site] button:focus-visible,
+[data-ks-site] input:focus-visible,
+[data-ks-site] select:focus-visible,
+[data-ks-site] textarea:focus-visible,
+[data-ks-site] summary:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
