@@ -60,6 +60,37 @@ export async function insertEvents(events: AnalyticsEvent[], meta: { country?: s
  * 집계
  * ------------------------------------------------------------------------ */
 
+interface ElementGroup {
+  clicks: AnalyticsEventRow[];
+  impressions: AnalyticsEventRow[];
+  rage: AnalyticsEventRow[];
+  dead: AnalyticsEventRow[];
+}
+
+/** 클릭·노출·분노·데드 클릭을 요소 id 로 한 번에 묶는다 (순회 1회) */
+function groupByElement(
+  [clicks, impressions, rage, dead]: AnalyticsEventRow[][],
+): Map<string, ElementGroup> {
+  const map = new Map<string, ElementGroup>();
+  const bucket = (id: string): ElementGroup => {
+    let g = map.get(id);
+    if (!g) {
+      g = { clicks: [], impressions: [], rage: [], dead: [] };
+      map.set(id, g);
+    }
+    return g;
+  };
+
+  /* 요소 목록은 클릭·노출에서만 만든다 — 분노/데드 클릭만 있는 id 로
+     칸을 만들면 히트맵에 클릭 0 짜리 항목이 생긴다(기존 동작 유지). */
+  for (const r of clicks) if (r.elementId) bucket(r.elementId).clicks.push(r);
+  for (const r of impressions) if (r.elementId) bucket(r.elementId).impressions.push(r);
+  for (const r of rage) if (r.elementId && map.has(r.elementId)) map.get(r.elementId)!.rage.push(r);
+  for (const r of dead) if (r.elementId && map.has(r.elementId)) map.get(r.elementId)!.dead.push(r);
+
+  return map;
+}
+
 export async function summarize(filters: AnalyticsFilters): Promise<PageAnalyticsSummary> {
   /* 기간 미지정은 '전체 기간'이다. 여기서 센티널 날짜('0000-01-01')를 만들어
      드라이버에 넘기면 Postgres 가 범위를 벗어난 날짜로 거부한다 — 경계값은
@@ -88,30 +119,28 @@ export async function summarize(filters: AnalyticsFilters): Promise<PageAnalytic
   const deadClicks = rows.filter((r) => r.type === 'dead_click');
   const totalClicks = clicks.length;
 
-  const elementIds = new Set<string>([
-    ...clicks.map((r) => r.elementId).filter(Boolean) as string[],
-    ...impressions.map((r) => r.elementId).filter(Boolean) as string[],
-  ]);
+  /* 요소마다 전체 행을 다시 훑으면 (요소 수 × 이벤트 수) 가 된다.
+     요소가 수십 개, 이벤트가 수십만 건이면 집계 한 번에 수 초가 걸린다.
+     한 번의 순회로 요소별 묶음을 만들어 둔다. */
+  const byElement = groupByElement([clicks, impressions, rageClicks, deadClicks]);
 
-  const elements: ElementStat[] = [...elementIds].map((elementId) => {
-    const elClicks = clicks.filter((r) => r.elementId === elementId);
-    const elImpressions = impressions.filter((r) => r.elementId === elementId);
-    const clickCount = elClicks.length;
-    const impressionCount = elImpressions.length;
-    const payload = elClicks[0]?.payload as unknown as ElementClickPayload | undefined;
-    const impPayload = elImpressions[0]?.payload as unknown as ImpressionPayload | undefined;
+  const elements: ElementStat[] = [...byElement.entries()].map(([elementId, g]) => {
+    const clickCount = g.clicks.length;
+    const impressionCount = g.impressions.length;
+    const payload = g.clicks[0]?.payload as unknown as ElementClickPayload | undefined;
+    const impPayload = g.impressions[0]?.payload as unknown as ImpressionPayload | undefined;
 
     return {
       elementId,
       elementName: payload?.elementName,
       elementType: payload?.elementType ?? impPayload?.elementType,
       clicks: clickCount,
-      uniqueClickers: new Set(elClicks.map((r) => r.anonymousId)).size,
+      uniqueClickers: new Set(g.clicks.map((r) => r.anonymousId)).size,
       impressions: impressionCount,
       clickShare: totalClicks ? clickCount / totalClicks : 0,
       ctr: impressionCount ? clickCount / impressionCount : 0,
-      rageClicks: rageClicks.filter((r) => r.elementId === elementId).length,
-      deadClicks: deadClicks.filter((r) => r.elementId === elementId).length,
+      rageClicks: g.rage.length,
+      deadClicks: g.dead.length,
       intensity: 0,
     };
   });
@@ -148,14 +177,24 @@ export async function summarize(filters: AnalyticsFilters): Promise<PageAnalytic
   /* --- 섹션별 이탈 --- */
   const exitRows = rows.filter((r) => r.type === 'exit');
   const dwellRows = rows.filter((r) => r.type === 'section_dwell');
-  const sectionIds = new Set<string>([
-    ...exitRows.map((r) => (r.payload as unknown as ExitPayload).lastVisibleSectionId).filter(Boolean) as string[],
-    ...dwellRows.map((r) => (r.payload as unknown as SectionDwellPayload).sectionId).filter(Boolean),
-  ]);
+  /* 요소 집계와 같은 이유로 섹션도 한 번에 묶는다 (섹션 수 × 이벤트 수 방지) */
+  const exitsBySection = new Map<string, AnalyticsEventRow[]>();
+  for (const r of exitRows) {
+    const id = (r.payload as unknown as ExitPayload).lastVisibleSectionId;
+    if (!id) continue;
+    (exitsBySection.get(id) ?? exitsBySection.set(id, []).get(id)!).push(r);
+  }
+  const viewsBySection = new Map<string, AnalyticsEventRow[]>();
+  for (const r of dwellRows) {
+    const id = (r.payload as unknown as SectionDwellPayload).sectionId;
+    if (!id) continue;
+    (viewsBySection.get(id) ?? viewsBySection.set(id, []).get(id)!).push(r);
+  }
+  const sectionIds = new Set<string>([...exitsBySection.keys(), ...viewsBySection.keys()]);
 
   const dropOff: SectionDropOff[] = [...sectionIds].map((sectionId) => {
-    const exits = exitRows.filter((r) => (r.payload as unknown as ExitPayload).lastVisibleSectionId === sectionId);
-    const views = dwellRows.filter((r) => (r.payload as unknown as SectionDwellPayload).sectionId === sectionId);
+    const exits = exitsBySection.get(sectionId) ?? [];
+    const views = viewsBySection.get(sectionId) ?? [];
     const viewSessions = new Set(views.map((r) => r.sessionId)).size;
     const dwellTotal = views.reduce((n, r) => n + (r.payload as unknown as SectionDwellPayload).dwellMs, 0);
     /* 이탈률은 '이 섹션을 본 세션 중 여기서 떠난 비율' 이다. 분자를 이벤트 수로

@@ -198,6 +198,14 @@ describe('fsAnalyticsStorage', () => {
     expect(await fsAnalyticsStorage.query({ pageId: '없는페이지' })).toHaveLength(0);
   });
 
+  it('같은 이벤트를 다시 보내도 한 번만 적재한다 (비콘 재전송)', async () => {
+    const { fsAnalyticsStorage } = await driver();
+    const e = event({ eventId: 'dup-1' });
+    expect(await fsAnalyticsStorage.insert([e] as never)).toBe(1);
+    expect(await fsAnalyticsStorage.insert([e] as never)).toBe(0);
+    expect(await fsAnalyticsStorage.query({})).toHaveLength(1);
+  });
+
   it('이벤트가 하나도 없으면 빈 배열 (파일이 없어도 던지지 않는다)', async () => {
     const { fsAnalyticsStorage } = await driver();
     expect(await fsAnalyticsStorage.query({})).toEqual([]);

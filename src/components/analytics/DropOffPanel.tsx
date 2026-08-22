@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useEditorStore } from '@/store/editorStore';
 import type { PageAnalyticsSummary } from '@/types/analytics';
 
 /* =============================================================================
@@ -10,9 +11,65 @@ import type { PageAnalyticsSummary } from '@/types/analytics';
  *   · 섹션별 이탈 — 이 섹션을 마지막으로 보고 떠난 세션 비율
  * ========================================================================== */
 
+/** 기간 선택 — 스토어의 heatmapRange 를 바꾸면 히트맵과 이 패널이 함께 다시 불러온다 */
+const RANGES: Array<{ label: string; days: number }> = [
+  { label: '7일', days: 7 },
+  { label: '30일', days: 30 },
+  { label: '90일', days: 90 },
+];
+
+function rangeOf(days: number): { from: string; to: string } {
+  const to = new Date();
+  const from = new Date(to);
+  from.setUTCDate(from.getUTCDate() - days);
+  return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
+}
+
+function RangePicker() {
+  const range = useEditorStore((s) => s.heatmapRange);
+  const setRange = useEditorStore((s) => s.setHeatmapRange);
+
+  /* 지금 선택된 기간이 몇 일짜리인지 되짚어 표시한다 */
+  const spanDays = Math.round(
+    (Date.parse(`${range.to}T00:00:00Z`) - Date.parse(`${range.from}T00:00:00Z`)) / 86_400_000,
+  );
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <span style={{ fontSize: 11, opacity: 0.6 }}>기간</span>
+      {RANGES.map((r) => {
+        const on = spanDays === r.days;
+        return (
+          <button
+            key={r.days}
+            type="button"
+            onClick={() => setRange(rangeOf(r.days))}
+            style={{
+              padding: '3px 9px',
+              borderRadius: 999,
+              border: `1px solid ${on ? '#3b82f6' : 'var(--puck-color-grey-09, #d1d5db)'}`,
+              background: on ? 'rgba(59,130,246,.18)' : 'transparent',
+              color: 'inherit',
+              fontSize: 11,
+              cursor: 'pointer',
+            }}
+          >
+            {r.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function DropOffPanel({ summary }: { summary: PageAnalyticsSummary | null }) {
   if (!summary) {
-    return <div style={{ padding: 16, fontSize: 12, opacity: 0.6 }}>분석 데이터를 불러오면 이탈 지점이 표시됩니다.</div>;
+    return (
+      <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <RangePicker />
+        <p style={{ margin: 0, fontSize: 12, opacity: 0.6 }}>분석 데이터를 불러오면 이탈 지점이 표시됩니다.</p>
+      </div>
+    );
   }
 
   const worst = summary.dropOff.reduce<null | (typeof summary.dropOff)[number]>(
@@ -22,6 +79,13 @@ export function DropOffPanel({ summary }: { summary: PageAnalyticsSummary | null
 
   return (
     <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+        <RangePicker />
+        <span style={{ fontSize: 10, opacity: 0.5 }}>
+          {summary.range.from} ~ {summary.range.to}
+        </span>
+      </div>
+
       {/* --- 핵심 지표 --- */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
         <Metric label="세션" value={summary.sessions.toLocaleString()} />

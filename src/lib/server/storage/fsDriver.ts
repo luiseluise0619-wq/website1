@@ -84,6 +84,22 @@ export const fsPageStorage: PageStorage = {
 
 /** 중복 이벤트 제거 — 재전송된 배치가 통계를 부풀리지 않게 한다 */
 const seenEventIds = new Set<string>();
+/* 무한히 담아 두면 오래 켜 둔 개발 서버에서 메모리가 계속 는다.
+   재전송은 몇 초 안에 오므로 최근 것만 기억하면 충분하다. */
+const MAX_SEEN_EVENTS = 50_000;
+
+function rememberEvent(id: string): void {
+  if (seenEventIds.size >= MAX_SEEN_EVENTS) {
+    // Set 은 삽입 순서를 지키므로 앞쪽(가장 오래된) 절반을 버린다
+    const drop = Math.floor(MAX_SEEN_EVENTS / 2);
+    let n = 0;
+    for (const key of seenEventIds) {
+      seenEventIds.delete(key);
+      if (++n >= drop) break;
+    }
+  }
+  seenEventIds.add(id);
+}
 
 export const fsAnalyticsStorage: AnalyticsStorage = {
   name: 'filesystem',
@@ -92,7 +108,7 @@ export const fsAnalyticsStorage: AnalyticsStorage = {
   async insert(rows) {
     const fresh = rows.filter((r) => r.eventId && !seenEventIds.has(r.eventId));
     if (!fresh.length) return 0;
-    for (const r of fresh) seenEventIds.add(r.eventId);
+    for (const r of fresh) rememberEvent(r.eventId);
     await fs.mkdir(path.dirname(EVENTS_FILE), { recursive: true });
     await fs.appendFile(EVENTS_FILE, fresh.map((r) => JSON.stringify(r)).join('\n') + '\n', 'utf8');
     return fresh.length;
