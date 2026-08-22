@@ -18,9 +18,11 @@ export interface SiteNavProps {
   locale: LocaleCode;
   activePath?: string;
   onLocaleChange: (next: LocaleCode) => void;
+  /** 이 페이지가 노출하는 언어 — 끈 언어는 선택지에서 빠져야 한다 */
+  availableLocales?: LocaleCode[];
 }
 
-export function SiteNav({ locale, activePath, onLocaleChange }: SiteNavProps) {
+export function SiteNav({ locale, activePath, onLocaleChange, availableLocales }: SiteNavProps) {
   const [openId, setOpenId] = React.useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = React.useState(false);
 
@@ -127,7 +129,7 @@ export function SiteNav({ locale, activePath, onLocaleChange }: SiteNavProps) {
           })}
         </nav>
 
-        <LanguageSwitcher locale={locale} onChange={onLocaleChange} compact />
+        <LanguageSwitcher locale={locale} available={availableLocales} onChange={onLocaleChange} compact />
 
         <button
           type="button"

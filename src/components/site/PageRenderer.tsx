@@ -109,7 +109,12 @@ export function PageRenderer({ page, initialLocale, chrome = true, analytics = t
             <a href="#ksoho-content" className="ksoho-skip">
               {t(SKIP_LABEL, locale, DEFAULT_LOCALE)}
             </a>
-            <SiteNav locale={locale} activePath={page.path} onLocaleChange={handleLocaleChange} />
+            <SiteNav
+              locale={locale}
+              activePath={page.path}
+              availableLocales={page.enabledLocales}
+              onLocaleChange={handleLocaleChange}
+            />
           </>
         ) : null}
         {/* tabIndex=-1 이 없으면 바로가기를 눌러도 포커스가 body 에 남아 다음 Tab 이 다시 메뉴로 간다 */}

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useEditorStore } from '@/store/editorStore';
-import { LOCALES, t } from '@/lib/i18n';
+import { LOCALES, LOCALE_ORDER, t } from '@/lib/i18n';
 
 /* =============================================================================
  * SEO 패널 — 로케일별 메타데이터 편집
@@ -20,6 +20,17 @@ export function SeoPanel() {
 
   const title = t(page.seo.title, locale, page.sourceLocale);
   const description = t(page.seo.description, locale, page.sourceLocale);
+
+  /* 지정이 없으면 전체 언어 노출이 기본값이다 (스키마의 enabledLocales 미설정) */
+  const enabledLocales = page.enabledLocales?.length ? page.enabledLocales : LOCALE_ORDER;
+
+  const toggleLocale = (code: (typeof LOCALE_ORDER)[number]) => {
+    const next = enabledLocales.includes(code)
+      ? enabledLocales.filter((l) => l !== code)
+      : [...LOCALE_ORDER.filter((l) => enabledLocales.includes(l) || l === code)];
+    if (!next.length) return;
+    updatePageMeta(page.id, { enabledLocales: next });
+  };
 
   return (
     <div style={{ padding: '14px 14px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -53,6 +64,38 @@ export function SeoPanel() {
         <input type="checkbox" checked={page.seo.noindex ?? false} onChange={(e) => updateSeo(page.id, { noindex: e.target.checked })} />
         검색엔진 색인 제외 (noindex)
       </label>
+
+      {/* --- 이 페이지를 어떤 언어로 보여줄 것인가 ---
+          예: 태국 전용 랜딩은 태국어·영어만. 여기서 끈 언어는 방문자 언어
+          판정에서 제외되고 hreflang·사이트맵에서도 빠진다. */}
+      <Field label="노출 언어" hint={`${enabledLocales.length}/${LOCALE_ORDER.length}`}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {LOCALE_ORDER.map((code) => {
+            const on = enabledLocales.includes(code);
+            return (
+              <button
+                key={code}
+                type="button"
+                onClick={() => toggleLocale(code)}
+                /* 전부 꺼 두면 어떤 방문자에게도 보여줄 언어가 없다 */
+                disabled={on && enabledLocales.length === 1}
+                title={on && enabledLocales.length === 1 ? '최소 한 개 언어는 남겨야 합니다' : undefined}
+                style={{
+                  padding: '4px 9px',
+                  borderRadius: 999,
+                  border: `1px solid ${on ? '#3b82f6' : 'var(--ks-edge)'}`,
+                  background: on ? 'rgba(59,130,246,.18)' : 'transparent',
+                  color: on ? '#e6ebf5' : 'var(--ks-muted)',
+                  fontSize: 11,
+                  cursor: 'pointer',
+                }}
+              >
+                {LOCALES[code].flag} {code.toUpperCase()}
+              </button>
+            );
+          })}
+        </div>
+      </Field>
 
       {/* --- 검색 결과 미리보기 --- */}
       <div style={{ background: '#fff', color: '#202124', borderRadius: 8, padding: 12, marginTop: 4 }}>

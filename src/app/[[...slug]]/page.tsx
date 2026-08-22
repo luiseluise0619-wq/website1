@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { cookies, headers } from 'next/headers';
 import { PageRenderer } from '@/components/site/PageRenderer';
 import { getPageByPath, listPages } from '@/lib/server/pageStore';
@@ -93,6 +93,16 @@ export default async function DynamicPage({ params, searchParams }: Params) {
   // 초안/보관 페이지는 공개 사이트에 노출하지 않는다
   if (!page || page.status !== 'published') notFound();
 
-  const locale = resolveLocale(page.enabledLocales, langOf(searchParams));
+  const requested = langOf(searchParams);
+  const locale = resolveLocale(page.enabledLocales, requested);
+
+  /* 이 페이지가 끈 언어로 들어온 요청은 실제로 보여 줄 언어로 넘긴다.
+     그대로 두면 <html lang> 은 요청한 언어(미들웨어가 URL 만 보고 정한 값)인데
+     본문은 다른 언어로 나가, 화면과 선언이 어긋난 페이지가 색인된다.
+     넘긴 뒤에는 요청 언어 = 노출 언어라 다시 넘어가지 않는다. */
+  if (requested && isLocale(requested) && requested !== locale) {
+    redirect(`${page.path}?lang=${locale}`);
+  }
+
   return <PageRenderer page={page} initialLocale={locale} />;
 }
