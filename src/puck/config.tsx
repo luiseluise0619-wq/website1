@@ -345,7 +345,7 @@ export const puckConfig: Config<KsohoBlocks, KsohoRootProps> = {
           ],
         },
         fill: colorField('채우기 색'),
-        stroke: { type: 'text', label: '선 색' },
+        stroke: colorField('선 색'),
         strokeWidth: { type: 'number', label: '선 두께' },
         svgPath: { type: 'textarea', label: 'SVG path (d)' },
         ...commonFields,
@@ -484,8 +484,20 @@ export const puckConfig: Config<KsohoBlocks, KsohoRootProps> = {
 
   root: {
     fields: {
-      background: { type: 'text', label: '페이지 배경색' },
-      fontFamily: { type: 'text', label: '기본 폰트' },
+      background: colorField('페이지 배경색'),
+      /* 실제로 로드한 폰트만 고르게 한다 — 임의 문자열을 넣으면 시스템
+         폰트로 떨어져 디자인이 조용히 달라진다(스타일 인스펙터와 같은 목록). */
+      fontFamily: {
+        type: 'select',
+        label: '기본 폰트',
+        options: [
+          { label: '기본 (언어별 자동)', value: 'var(--font-noto-kr), sans-serif' },
+          { label: 'Inter', value: 'var(--font-inter), sans-serif' },
+          { label: 'Noto Sans Thai', value: 'var(--font-noto-thai), sans-serif' },
+          { label: 'Noto Sans JP', value: 'var(--font-noto-jp), sans-serif' },
+          { label: 'Noto Sans SC', value: 'var(--font-noto-sc), sans-serif' },
+        ],
+      },
     },
     defaultProps: { background: '#ffffff', fontFamily: 'var(--font-noto-kr), sans-serif' },
     /* minHeight:'100%' 를 쓰면 안 된다: 페이지 높이가 프레임 높이에 의존하고,

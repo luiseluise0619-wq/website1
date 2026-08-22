@@ -64,7 +64,22 @@ export function RightPanel({ children, isLoading, hasSelection, analytics, tab, 
         {/* 스타일 탭은 항상 마운트를 유지한다 — 탭을 옮겨도 편집 중이던
             필드의 포커스/스크롤 위치가 날아가지 않게 하기 위함 */}
         <div style={{ display: tab === 'style' ? 'block' : 'none' }}>
-          <FreeElementInspector fallback={hasSelection ? children : <EmptyState isLoading={isLoading} />} />
+          {/* 아무것도 선택하지 않았을 때 Puck 이 children 으로 주는 것은
+              '페이지 전체 설정'(배경색·기본 폰트)이다. 예전에는 그것을 통째로
+              가리고 안내문만 띄워, 페이지 설정을 바꿀 방법이 아예 없었다. */}
+          <FreeElementInspector
+            fallback={
+              hasSelection ? (
+                children
+              ) : (
+                <>
+                  <PageSettingsHeader />
+                  {children}
+                  <EmptyState isLoading={isLoading} />
+                </>
+              )
+            }
+          />
         </div>
 
         {tab === 'seo' ? <SeoPanel /> : null}
@@ -159,6 +174,20 @@ const selectedHeader: React.CSSProperties = {
   background: 'var(--puck-color-azure-11, #eff6ff)',
   color: 'var(--puck-color-azure-04, #1d4ed8)',
 };
+
+/** 선택이 없을 때 아래 필드가 '페이지 전체' 설정임을 알려 준다 */
+function PageSettingsHeader() {
+  return (
+    <div style={{ padding: '12px 14px 0' }}>
+      <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: 'var(--puck-color-black, #111827)' }}>
+        페이지 전체 설정
+      </p>
+      <p style={{ margin: '4px 0 0', fontSize: 11, opacity: 0.65 }}>
+        배경색과 기본 폰트는 이 페이지의 모든 블록에 적용됩니다.
+      </p>
+    </div>
+  );
+}
 
 function EmptyState({ isLoading }: { isLoading?: boolean }) {
   if (isLoading) return <div style={hint}>불러오는 중…</div>;
