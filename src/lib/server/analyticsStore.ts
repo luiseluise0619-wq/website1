@@ -5,6 +5,7 @@ import type {
   AnalyticsEventRow,
   AnalyticsFilters,
   ClickPointBucket,
+  ConversionStat,
   ElementClickPayload,
   ElementStat,
   ExitPayload,
@@ -226,6 +227,32 @@ export async function summarize(filters: AnalyticsFilters): Promise<PageAnalytic
   /* --- 클릭 좌표 버킷 (픽셀 히트맵용) --- */
   const clickPoints = bucketClickPoints(clicks);
 
+  /* --- 전환 --- */
+  /* 요소에 '전환 목표명' 을 지정하면 클릭 시 conversion 이벤트가 쌓인다.
+     여태 수집만 하고 아무 데도 쓰지 않아, 목표를 지정해도 결과를 볼 수 없었다. */
+  const conversionRows = rows.filter((r) => r.type === 'conversion');
+  const goalMap = new Map<string, { count: number; sessions: Set<string> }>();
+  for (const r of conversionRows) {
+    const goal = String((r.payload as { goal?: unknown }).goal ?? '').trim();
+    if (!goal) continue;
+    let g = goalMap.get(goal);
+    if (!g) {
+      g = { count: 0, sessions: new Set() };
+      goalMap.set(goal, g);
+    }
+    g.count += 1;
+    g.sessions.add(r.sessionId);
+  }
+  const conversions: ConversionStat[] = [...goalMap.entries()]
+    .map(([goal, g]) => ({
+      goal,
+      count: g.count,
+      sessions: g.sessions.size,
+      // 전환율은 세션 기준 — 한 사람이 세 번 눌러도 한 번으로 센다
+      rate: sessions.size ? g.sessions.size / sessions.size : 0,
+    }))
+    .sort((a, b) => b.count - a.count);
+
   /* --- 언어별 분포 --- */
   const localeMap = new Map<LocaleCode, Set<string>>();
   for (const r of rows) {
@@ -252,6 +279,7 @@ export async function summarize(filters: AnalyticsFilters): Promise<PageAnalytic
     dropOff,
     clickPoints,
     localeBreakdown,
+    conversions,
   };
 }
 

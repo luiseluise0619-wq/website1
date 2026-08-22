@@ -94,6 +94,22 @@ export function DropOffPanel({ summary }: { summary: PageAnalyticsSummary | null
         <Metric label="총 클릭" value={summary.totalClicks.toLocaleString()} />
       </div>
 
+      {/* --- 전환 --- */}
+      {summary.conversions.length ? (
+        <section>
+          <h4 style={h4}>전환</h4>
+          {summary.conversions.map((c) => (
+            <div key={c.goal} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12, padding: '3px 0' }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.goal}</span>
+              <span style={{ flexShrink: 0 }}>
+                <strong>{c.count.toLocaleString()}회</strong>
+                <span style={{ opacity: 0.55 }}> · {c.sessions}세션 · {(c.rate * 100).toFixed(1)}%</span>
+              </span>
+            </div>
+          ))}
+        </section>
+      ) : null}
+
       {/* --- 스크롤 퍼널 --- */}
       <section>
         <h4 style={h4}>스크롤 도달률</h4>

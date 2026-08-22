@@ -148,6 +148,48 @@ describe('summarize — 이탈 지점', () => {
   });
 });
 
+describe('summarize — 전환', () => {
+  it('목표별로 횟수·세션·전환율을 낸다', async () => {
+    // s1 이 두 번, s2 가 한 번 누른 hero_cta / s3 이 한 번 누른 inquiry
+    rows.push(
+      row({ type: 'page_view', sessionId: 's1', payload: {} }),
+      row({ type: 'page_view', sessionId: 's2', payload: {} }),
+      row({ type: 'page_view', sessionId: 's3', payload: {} }),
+      row({ type: 'page_view', sessionId: 's4', payload: {} }),
+      row({ type: 'conversion', sessionId: 's1', payload: { goal: 'hero_cta' } }),
+      row({ type: 'conversion', sessionId: 's1', payload: { goal: 'hero_cta' } }),
+      row({ type: 'conversion', sessionId: 's2', payload: { goal: 'hero_cta' } }),
+      row({ type: 'conversion', sessionId: 's3', payload: { goal: 'inquiry' } }),
+    );
+
+    const s = await summarize({});
+    expect(s.conversions).toHaveLength(2);
+
+    const hero = s.conversions.find((c) => c.goal === 'hero_cta')!;
+    expect(hero.count).toBe(3);
+    // 같은 사람이 세 번 눌러도 세션은 하나
+    expect(hero.sessions).toBe(2);
+    expect(hero.rate).toBeCloseTo(0.5); // 4세션 중 2세션
+    // 많이 일어난 순
+    expect(s.conversions[0].goal).toBe('hero_cta');
+  });
+
+  it('목표명이 비어 있는 이벤트는 세지 않는다', async () => {
+    rows.push(
+      row({ type: 'page_view', sessionId: 's1', payload: {} }),
+      row({ type: 'conversion', sessionId: 's1', payload: { goal: '  ' } }),
+      row({ type: 'conversion', sessionId: 's1', payload: {} }),
+    );
+    const s = await summarize({});
+    expect(s.conversions).toEqual([]);
+  });
+
+  it('전환이 없으면 빈 배열', async () => {
+    rows.push(row({ type: 'page_view', sessionId: 's1', payload: {} }));
+    expect((await summarize({})).conversions).toEqual([]);
+  });
+});
+
 describe('summarize — 필터와 경계', () => {
   it('언어 필터를 드라이버에 전달한다', async () => {
     rows.push(

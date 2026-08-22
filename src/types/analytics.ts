@@ -305,6 +305,19 @@ export interface PageAnalyticsSummary {
   /** 픽셀 히트맵용 클릭 좌표 버킷 (선택적, 무거우므로 요청 시에만) */
   clickPoints?: ClickPointBucket[];
   localeBreakdown: Array<{ locale: LocaleCode; sessions: number; share: number }>;
+  /** 전환 목표별 성과 — '전환 목표명' 을 지정한 요소가 클릭된 횟수 */
+  conversions: ConversionStat[];
+}
+
+export interface ConversionStat {
+  /** 요소에 지정한 전환 목표명 (예: hero_cta, inquiry_submit) */
+  goal: string;
+  /** 발생 횟수 */
+  count: number;
+  /** 한 번이라도 전환한 세션 수 — 같은 사람이 세 번 눌러도 1 */
+  sessions: number;
+  /** 전환한 세션 / 전체 세션 */
+  rate: number;
 }
 
 export interface ClickPointBucket {
