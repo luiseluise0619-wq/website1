@@ -54,7 +54,6 @@ export function EditorShell({ initialPages, storage }: { initialPages: PageDocum
   const [wide, setWide] = React.useState(false);
   const canvasRef = React.useRef<HTMLDivElement>(null);
   /** Puck 캔버스는 iframe 안에서 렌더된다 — 히트맵 측정 대상 */
-  const [canvasDoc, setCanvasDoc] = React.useState<Document | null>(null);
   /** Puck 의 최신 데이터를 항상 들고 있는 ref (툴바 저장/번역이 참조) */
   const liveData = React.useRef<PuckPageData | null>(null);
   /** 번역 등으로 데이터를 통째로 갈아끼울 때 Puck 을 리마운트하기 위한 키 */
@@ -85,18 +84,6 @@ export function EditorShell({ initialPages, storage }: { initialPages: PageDocum
       cancelled = true;
     };
   }, [needAnalytics, activePage?.id, heatmapRange, setAnalytics, setAnalyticsLoading, setAnalyticsError]);
-
-  /* --- Puck iframe document 탐색 (히트맵 오버레이 좌표 기준) --- */
-  React.useEffect(() => {
-    if (!heatmapEnabled) return;
-    const findFrame = () => {
-      const frame = document.querySelector<HTMLIFrameElement>('iframe#preview-frame, .Puck-frame iframe, iframe');
-      if (frame?.contentDocument) setCanvasDoc(frame.contentDocument);
-    };
-    findFrame();
-    const timer = setInterval(findFrame, 800);
-    return () => clearInterval(timer);
-  }, [heatmapEnabled]);
 
   const handleSave = async (publish?: boolean) => {
     if (!activePage) return;
@@ -257,7 +244,7 @@ export function EditorShell({ initialPages, storage }: { initialPages: PageDocum
 
             {/* 히트맵은 Puck 캔버스 위에 겹치는 별도 레이어 */}
             {heatmapEnabled ? (
-              <HeatmapOverlay targetDocument={canvasDoc} containerRef={canvasRef} summary={analytics} />
+              <HeatmapOverlay containerRef={canvasRef} summary={analytics} />
             ) : null}
           </div>
         </div>

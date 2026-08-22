@@ -44,15 +44,24 @@ function metricValue(stat: ElementStat, metric: 'clicks' | 'ctr' | 'rage'): { va
   return { value: stat.clicks, display: `${stat.clicks.toLocaleString()}회`, intensity: stat.intensity };
 }
 
+/** Puck 캔버스 iframe 을 찾는 선택자 — 버전에 따라 클래스명이 바뀌므로 여러 개를 둔다 */
+const CANVAS_FRAME_SELECTOR = 'iframe#preview-frame, .Puck-frame iframe, iframe';
+
 export interface HeatmapOverlayProps {
-  /** 측정 대상 문서 — Puck 은 캔버스를 iframe 으로 렌더하므로 그 document 를 넘긴다 */
-  targetDocument?: Document | null;
+  /**
+   * 측정 대상 iframe 을 찾을 선택자.
+   * 요소나 document 를 미리 잡아 두지 않는 이유: Puck 은 캔버스 iframe 을
+   * 다시 마운트하기 때문에, 한 번 잡아 둔 참조는 곧 화면에서 떨어져 나간
+   * 빈 문서를 가리킨다. 그 문서에는 [data-element-id] 가 하나도 없어
+   * 히트맵이 통째로 비어 보였다 — 측정할 때마다 새로 찾는다.
+   */
+  frameSelector?: string;
   /** 오버레이가 놓일 컨테이너 (좌표 보정 기준) */
   containerRef?: React.RefObject<HTMLElement>;
   summary?: PageAnalyticsSummary | null;
 }
 
-export function HeatmapOverlay({ targetDocument, containerRef, summary: summaryProp }: HeatmapOverlayProps) {
+export function HeatmapOverlay({ frameSelector = CANVAS_FRAME_SELECTOR, containerRef, summary: summaryProp }: HeatmapOverlayProps) {
   const enabled = useEditorStore((s) => s.heatmapEnabled);
   const metric = useEditorStore((s) => s.heatmapMetric);
   const storeSummary = useEditorStore((s) => s.analytics);
@@ -63,7 +72,10 @@ export function HeatmapOverlay({ targetDocument, containerRef, summary: summaryP
 
   /** 요소 위치 측정 — 캔버스 스크롤/줌/리사이즈에 따라 다시 계산한다 */
   const measure = React.useCallback(() => {
-    const doc = targetDocument ?? (typeof document !== 'undefined' ? document : null);
+    // 매 측정마다 iframe 과 그 문서를 새로 찾는다 — 위 주석의 이유
+    const frameEl =
+      typeof document !== 'undefined' ? document.querySelector<HTMLIFrameElement>(frameSelector) : null;
+    const doc = frameEl?.contentDocument ?? (typeof document !== 'undefined' ? document : null);
     if (!doc || !summary) {
       setBoxes([]);
       return;
@@ -98,7 +110,7 @@ export function HeatmapOverlay({ targetDocument, containerRef, summary: summaryP
       });
     });
     setBoxes(next);
-  }, [targetDocument, containerRef, summary]);
+  }, [frameSelector, containerRef, summary]);
 
   React.useEffect(() => {
     if (!enabled) {
@@ -106,7 +118,7 @@ export function HeatmapOverlay({ targetDocument, containerRef, summary: summaryP
       return;
     }
     measure();
-    const doc = targetDocument ?? document;
+    const doc = document.querySelector<HTMLIFrameElement>(frameSelector)?.contentDocument ?? document;
     const win = doc.defaultView;
     if (!win) return;
 
@@ -118,13 +130,19 @@ export function HeatmapOverlay({ targetDocument, containerRef, summary: summaryP
 
     win.addEventListener('scroll', measure, { passive: true });
     win.addEventListener('resize', measure);
+
+    /* 위 관찰자들은 '지금' 문서에 붙는다. Puck 이 문서를 갈아끼우면 관찰이
+       끊기므로, 주기적 재측정으로 새 문서를 다시 집는다. */
+    const timer = setInterval(measure, 1000);
+
     return () => {
       observer.disconnect();
       mutation.disconnect();
+      clearInterval(timer);
       win.removeEventListener('scroll', measure);
       win.removeEventListener('resize', measure);
     };
-  }, [enabled, measure, targetDocument]);
+  }, [enabled, measure, frameSelector]);
 
   if (!enabled) return null;
 
