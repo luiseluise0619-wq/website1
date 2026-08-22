@@ -23,6 +23,7 @@ export function PageTree({ onError }: PageTreeProps = {}) {
   const setActivePage = useEditorStore((s) => s.setActivePage);
   const createPage = useEditorStore((s) => s.createPage);
   const deletePage = useEditorStore((s) => s.deletePage);
+  const duplicatePage = useEditorStore((s) => s.duplicatePage);
   const [filter, setFilter] = React.useState('');
   /** null = 닫힘, undefined preset = 빈 페이지에서 시작 */
   const [dialog, setDialog] = React.useState<{ preset: NavNode | null } | null>(null);
@@ -69,7 +70,7 @@ export function PageTree({ onError }: PageTreeProps = {}) {
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 6px' }}>
         {NAVIGATION.map((node) => (
           <div key={node.id} style={{ marginBottom: 6 }}>
-            <NavRow node={node} page={byPath.get(node.path ?? '')} depth={0} onCreate={(n) => setDialog({ preset: n })} activePageId={activePageId} onSelect={setActivePage} onDelete={handleDelete} visible={matches(node.label)} />
+            <NavRow node={node} page={byPath.get(node.path ?? '')} depth={0} onCreate={(n) => setDialog({ preset: n })} activePageId={activePageId} onSelect={setActivePage} onDelete={handleDelete} onDuplicate={duplicatePage} visible={matches(node.label)} />
             {node.children?.map((child) =>
               matches(child.label) || matches(node.label) ? (
                 <NavRow
@@ -80,7 +81,7 @@ export function PageTree({ onError }: PageTreeProps = {}) {
                   onCreate={(node) => setDialog({ preset: node })}
                   activePageId={activePageId}
                   onSelect={setActivePage}
-                  onDelete={handleDelete}
+                  onDelete={handleDelete} onDuplicate={duplicatePage}
                   visible
                 />
               ) : null,
@@ -89,7 +90,7 @@ export function PageTree({ onError }: PageTreeProps = {}) {
         ))}
 
         {/* --- IA 에 없는 커스텀 페이지 --- */}
-        <CustomPages pages={pages} activePageId={activePageId} onSelect={setActivePage} onDelete={handleDelete} />
+        <CustomPages pages={pages} activePageId={activePageId} onSelect={setActivePage} onDelete={handleDelete} onDuplicate={duplicatePage} />
       </div>
 
       <button type="button" onClick={() => setDialog({ preset: null })} style={createBtn}>
@@ -116,6 +117,7 @@ function NavRow({
   activePageId,
   onSelect,
   onDelete,
+  onDuplicate,
   visible,
 }: {
   node: NavNode;
@@ -125,6 +127,7 @@ function NavRow({
   activePageId: string | null;
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
+  onDuplicate: (id: string) => string | null;
   visible: boolean;
 }) {
   if (!visible) return null;
@@ -152,6 +155,18 @@ function NavRow({
         {page ? (
           <>
             <StatusDot status={page.status} />
+            {/* 국가별 랜딩처럼 같은 구성을 여러 벌 만들 때 처음부터 짜지 않아도 된다 */}
+            <button
+              type="button"
+              title="페이지 복제 (초안으로)"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDuplicate(page.id);
+              }}
+              style={{ background: 'none', border: 0, color: 'inherit', opacity: 0.45, cursor: 'pointer', fontSize: 12, padding: 0 }}
+            >
+              ⧉
+            </button>
             <button
               type="button"
               title="페이지 삭제"
@@ -187,11 +202,13 @@ function CustomPages({
   activePageId,
   onSelect,
   onDelete,
+  onDuplicate,
 }: {
   pages: PageDocument[];
   activePageId: string | null;
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
+  onDuplicate: (id: string) => string | null;
 }) {
   const navPaths = new Set<string>(['/']);
   const walk = (nodes: NavNode[]) => {
@@ -252,6 +269,17 @@ function CustomPages({
               <span>{p.title}</span>
               <span style={{ marginLeft: 'auto', display: 'flex', gap: 4, alignItems: 'center' }}>
                 <StatusDot status={p.status} />
+                <button
+                  type="button"
+                  title="페이지 복제 (초안으로)"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDuplicate(p.id);
+                  }}
+                  style={{ background: 'none', border: 0, color: 'inherit', opacity: 0.45, cursor: 'pointer', fontSize: 12, padding: 0 }}
+                >
+                  ⧉
+                </button>
                 <button
                   type="button"
                   onClick={(e) => {

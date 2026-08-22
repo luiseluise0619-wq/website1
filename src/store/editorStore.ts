@@ -59,6 +59,8 @@ export interface EditorActions {
   loadPages: (pages: PageDocument[]) => void;
   setActivePage: (pageId: string) => void;
   createPage: (input: { path: string; title: string; navId?: string; templateId?: string }) => string;
+  /** 기존 페이지를 통째로 복제한다 (국가별 랜딩처럼 같은 구성을 여러 벌 만들 때) */
+  duplicatePage: (pageId: string) => string | null;
   /** 현재 페이지 내용을 템플릿으로 교체한다 */
   applyTemplate: (pageId: string, templateId: string) => void;
   updatePageMeta: (
@@ -150,6 +152,35 @@ export const useEditorStore = create<EditorStore>((set, get) => {
         createdAt: now,
         updatedAt: now,
         revision: 1,
+      };
+      set((s) => ({ pages: [...s.pages, page], activePageId: id, dirty: true }));
+      return id;
+    },
+
+    duplicatePage: (pageId) => {
+      const source = get().pages.find((p) => p.id === pageId);
+      if (!source) return null;
+
+      /* 경로는 페이지의 신원이다 — 겹치면 저장이 거부되므로 비어 있는 번호를 찾는다 */
+      const taken = new Set(get().pages.map((p) => p.path));
+      let path = `${source.path}-copy`;
+      for (let n = 2; taken.has(path); n += 1) path = `${source.path}-copy-${n}`;
+
+      const id = newPageId();
+      const now = new Date().toISOString();
+      const page: PageDocument = {
+        ...source,
+        id,
+        path,
+        title: `${source.title} 사본`,
+        /* 사본은 초안에서 시작한다 — 복제하자마자 공개되면 사고다 */
+        status: 'draft',
+        createdAt: now,
+        updatedAt: now,
+        revision: 1,
+        // 깊은 복사: 얕게 두면 원본과 캔버스를 공유해 한쪽 수정이 양쪽에 반영된다
+        content: JSON.parse(JSON.stringify(source.content)) as PageDocument['content'],
+        seo: JSON.parse(JSON.stringify(source.seo)) as PageDocument['seo'],
       };
       set((s) => ({ pages: [...s.pages, page], activePageId: id, dirty: true }));
       return id;

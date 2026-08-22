@@ -19,6 +19,11 @@ export const LOCALE_HEADER = 'x-ksoho-locale';
  * 그래서 미들웨어가 대신 읽어 헤더로 넘긴다. 이게 없으면 ?lang=en 으로 들어온
  * 영어 페이지가 <html lang="ko"> 로 나가, hreflang 이 약속한 언어와 어긋난다.
  * 판정 순서는 app/[[...slug]]/page.tsx 의 resolveLocale 과 같아야 한다.
+ *
+ * 한계: 여기서는 페이지별 노출 언어(enabledLocales)를 알 수 없다(Edge 라 DB 를
+ * 읽지 못한다). 그래서 제한된 페이지에 ?lang= 으로 들어오면 페이지 쪽에서 보여
+ * 줄 언어로 307 을 보낸다. 쿠키·Accept-Language 로 어긋난 경우는 본문이 폴백
+ * 언어로 나가고 <html lang> 은 하이드레이션 뒤 PageRenderer 가 맞춘다.
  */
 function visitorLocale(request: NextRequest) {
   const param = request.nextUrl.searchParams.get('lang') ?? request.nextUrl.searchParams.get('locale');
