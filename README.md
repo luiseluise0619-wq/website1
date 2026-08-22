@@ -279,7 +279,7 @@ DeepL 은 **태국어·베트남어를 지원하지 않아** 해당 언어는 �
 ## 테스트
 
 ```bash
-npm test           # 195개 테스트
+npm test           # 213개 테스트
 npm run test:watch
 npm run a11y       # 실행 중인 사이트에 axe-core (WCAG 2.1 AA) — 위반 시 종료 코드 1
 ```
@@ -298,6 +298,7 @@ npm run a11y       # 실행 중인 사이트에 axe-core (WCAG 2.1 AA) — 위�
 | `test/fsDriver.test.ts` | 파일 드라이버 — 시드, 경로 충돌, 재기동 후 잔존, 문의 상태 변경 |
 | `test/rateLimit.test.ts` | 창 제한과 만료 항목 청소(메모리 누수 방지) |
 | `test/editorStore.test.ts` | 페이지 복제(깊은 복사·경로 충돌·초안 시작), 삭제 후 활성 페이지 |
+| `test/revision.test.ts` | 오래된 저장 차단(탭 두 개가 서로를 덮어쓰지 않게) |
 
 브라우저가 필요한 것(에디터 드래그, 히트맵 좌표, 모바일 레이아웃, 접근성)은
 Playwright 로 실제 렌더를 띄워 확인했습니다. `npm run a11y` 가 그중 접근성 부분입니다.
