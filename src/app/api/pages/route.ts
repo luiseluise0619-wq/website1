@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { listPages, savePages, upsertPage } from '@/lib/server/pageStore';
+import { getPageById, listPages, savePages, upsertPage } from '@/lib/server/pageStore';
+import { conflictMessage, conflictOf, isStaleWrite, type RevisionConflict } from '@/lib/revision';
 import { sanitizePage } from '@/lib/server/sanitizePage';
 import { assertAdmin } from '@/lib/server/auth';
 import { StorageReadOnlyError } from '@/lib/server/storage';
@@ -28,7 +29,27 @@ export async function POST(request: Request) {
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   try {
-    const body = (await request.json()) as { page?: PageDocument; pages?: PageDocument[] };
+    const body = (await request.json()) as {
+      page?: PageDocument;
+      pages?: PageDocument[];
+      /** 클라이언트가 편집을 시작할 때 본 판 { pageId: revision } */
+      base?: Record<string, number>;
+    };
+
+    const incoming = Array.isArray(body.pages) ? body.pages : body.page ? [body.page] : [];
+
+    /* 오래된 판이 최신 작업을 덮어쓰지 않게 막는다(탭 두 개, 관리자 두 명).
+       한 건이라도 충돌하면 아무것도 저장하지 않는다 — 절반만 저장되면
+       어느 쪽이 최신인지 아무도 알 수 없게 된다. */
+    const conflicts: RevisionConflict[] = [];
+    for (const page of incoming) {
+      const stored = await getPageById(page.id);
+      const base = body.base?.[page.id];
+      if (stored && isStaleWrite(page, stored, base)) conflicts.push(conflictOf(page, stored, base));
+    }
+    if (conflicts.length) {
+      return NextResponse.json({ error: conflictMessage(conflicts), conflicts }, { status: 409 });
+    }
 
     if (Array.isArray(body.pages)) {
       // 저장 경로가 유일한 신뢰 경계 — 캔버스 HTML 은 여기서 정화된다

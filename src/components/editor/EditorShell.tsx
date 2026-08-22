@@ -48,6 +48,8 @@ export function EditorShell({
   const heatmapRange = useEditorStore((s) => s.heatmapRange);
   const analytics = useEditorStore((s) => s.analytics);
   const dirtyPageIds = useEditorStore((s) => s.dirtyPageIds);
+  const dirty = useEditorStore((s) => s.dirty);
+  const baseRevisions = useEditorStore((s) => s.baseRevisions);
   const setAnalytics = useEditorStore((s) => s.setAnalytics);
   const setAnalyticsLoading = useEditorStore((s) => s.setAnalyticsLoading);
   const setAnalyticsError = useEditorStore((s) => s.setAnalyticsError);
@@ -77,6 +79,19 @@ export function EditorShell({
   React.useEffect(() => {
     liveData.current = activePage?.content ?? null;
   }, [activePage?.id]);
+
+  /* 저장하지 않은 편집을 안고 탭을 닫으려 하면 브라우저 기본 경고를 띄운다.
+     이 에디터는 자동 저장이 없어서, 닫는 순간 그대로 사라진다. */
+  React.useEffect(() => {
+    if (!dirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      // 최신 브라우저는 문구를 무시하지만, 값이 있어야 경고가 뜬다
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [dirty]);
 
   /* --- 분석 데이터 로드 (히트맵 또는 '분석' 탭) ---
      히트맵에만 걸어 두면 우측 '분석' 탭이 아무것도 부르지 않아
@@ -118,16 +133,22 @@ export function EditorShell({
       const others = pages.filter((p) => p.id !== activePage.id && dirtyPageIds.includes(p.id));
       const payload = [active, ...others];
 
+      /* 내가 편집을 시작할 때 본 판을 함께 보낸다 — 그 사이 누군가 저장했다면
+         서버가 409 로 막는다(보내는 판만 비교하면 두 탭이 똑같이 +1 해서 놓친다). */
+      const base = Object.fromEntries(payload.map((p) => [p.id, baseRevisions[p.id] ?? p.revision]));
+
       await fetchJson('/api/pages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload.length === 1 ? { page: active } : { pages: payload }),
+        body: JSON.stringify(payload.length === 1 ? { page: active, base } : { pages: payload, base }),
       });
 
       commitContent(activePage.id, content);
       if (publish) updatePageMeta(activePage.id, { status: 'published' });
-      markSaved();
+      markSaved(payload.map((p) => ({ id: p.id, revision: p.revision })));
     } catch (err) {
+      /* 409 = 다른 곳에서 이미 수정됨. 메시지에 '무엇을 해야 하는지'가 들어 있으므로
+         그대로 보여 준다(fetchJson 이 서버 문구를 그대로 전달한다). */
       setSaveError(err instanceof Error ? err.message : '저장에 실패했습니다.');
       setSaving(false);
     }

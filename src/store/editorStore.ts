@@ -46,6 +46,8 @@ export interface EditorState {
   dirty: boolean;
   /** 저장이 필요한 페이지 id — 저장은 '지금 보고 있는 페이지'만이 아니다 */
   dirtyPageIds: string[];
+  /** 편집을 시작할 때(불러오기·마지막 저장) 본 판 — 남의 저장을 덮어쓰지 않기 위한 기준 */
+  baseRevisions: Record<string, number>;
   saving: boolean;
   lastSavedAt: string | null;
 
@@ -88,7 +90,7 @@ export interface EditorActions {
   setAnalyticsError: (message: string | null) => void;
 
   setSaving: (v: boolean) => void;
-  markSaved: () => void;
+  markSaved: (saved?: Array<{ id: string; revision: number }>) => void;
   setPickedElement: (id: string | null) => void;
 
   activePage: () => PageDocument | null;
@@ -130,11 +132,19 @@ export const useEditorStore = create<EditorStore>((set, get) => {
     analyticsError: null,
     dirty: false,
     dirtyPageIds: [],
+    baseRevisions: {},
     saving: false,
     lastSavedAt: null,
     pickedElementId: null,
 
-    loadPages: (pages) => set({ pages, activePageId: pages[0]?.id ?? null, dirty: false, dirtyPageIds: [] }),
+    loadPages: (pages) =>
+      set({
+        pages,
+        activePageId: pages[0]?.id ?? null,
+        dirty: false,
+        dirtyPageIds: [],
+        baseRevisions: Object.fromEntries(pages.map((p) => [p.id, p.revision])),
+      }),
 
     setActivePage: (activePageId) => set({ activePageId, analytics: null, analyticsError: null }),
 
@@ -247,7 +257,15 @@ export const useEditorStore = create<EditorStore>((set, get) => {
     setPickedElement: (pickedElementId) => set({ pickedElementId }),
 
     setSaving: (saving) => set({ saving }),
-    markSaved: () => set({ dirty: false, dirtyPageIds: [], saving: false, lastSavedAt: new Date().toISOString() }),
+    markSaved: (saved = []) =>
+      set((s) => ({
+        dirty: false,
+        dirtyPageIds: [],
+        saving: false,
+        lastSavedAt: new Date().toISOString(),
+        /* 방금 저장한 판이 다음 저장의 기준이 된다 */
+        baseRevisions: { ...s.baseRevisions, ...Object.fromEntries(saved.map((p) => [p.id, p.revision])) },
+      })),
 
     activePage: () => {
       const { pages, activePageId } = get();
