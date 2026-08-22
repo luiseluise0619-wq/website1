@@ -188,7 +188,7 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
 
   /** placement 갱신을 Puck 상태에 반영 */
   const commitFor = React.useCallback(
-    (id: string, next: Partial<FreePlacement>) => {
+    (id: string, next: Partial<FreePlacement>, opts: { recordHistory?: boolean } = {}) => {
       const selector = getSelectorForId(id);
       const item = getItemById(id);
       if (!selector || !item) return;
@@ -197,6 +197,10 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
         type: 'replace',
         destinationIndex: selector.index,
         destinationZone: selector.zone,
+        /* 드래그 중간 상태는 히스토리에 남기지 않는다. 남기면 한 번 끌 때마다
+           수십 개가 쌓여 Ctrl+Z 한 번이 몇 픽셀만 되돌린다. 손을 뗄 때 한 번만
+           기록해야 '한 번의 드래그 = 한 번의 되돌리기'가 된다. */
+        recordHistory: opts.recordHistory ?? true,
         data: {
           ...item,
           props: {
@@ -283,7 +287,11 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
       height: startBox.height / startBox.scale,
     };
     const scale = startBox.scale || 1;
-    const commitTo = (next: Partial<FreePlacement>) => commitFor(target.id, next);
+    let last: Partial<FreePlacement> | null = null;
+    const commitTo = (next: Partial<FreePlacement>) => {
+      last = next;
+      commitFor(target.id, next, { recordHistory: false });
+    };
     const round = (v: number) => (SNAP > 1 ? Math.round(v / SNAP) * SNAP : Math.round(v));
 
     const onMove = (ev: PointerEvent) => {
@@ -315,6 +323,8 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
 
     const onUp = () => {
       setMode('idle');
+      // 마지막 위치만 히스토리에 남긴다 → Ctrl+Z 한 번이 드래그 전체를 되돌린다
+      if (last) commitFor(target.id, last, { recordHistory: true });
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
     };
