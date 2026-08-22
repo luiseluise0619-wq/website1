@@ -9,6 +9,8 @@ export interface LocaleDefinition {
   /** 해당 언어로 표기한 이름 (언어 선택 드롭다운용) */
   nativeName: string;
   englishName: string;
+  /** 관리자 화면(한국어)에서 부르는 이름 — 오류 문구가 '태국어' 라고 말해야 한다 */
+  koName: string;
   flag: string;
   dir: 'ltr' | 'rtl';
   /** <html lang=""> 및 hreflang 에 쓰이는 BCP-47 태그 */
@@ -20,12 +22,12 @@ export interface LocaleDefinition {
 }
 
 export const LOCALES: Record<LocaleCode, LocaleDefinition> = {
-  ko: { code: 'ko', nativeName: '한국어',   englishName: 'Korean',     flag: '🇰🇷', dir: 'ltr', bcp47: 'ko-KR', deeplCode: 'KO',    googleCode: 'ko' },
-  en: { code: 'en', nativeName: 'English',  englishName: 'English',    flag: '🇺🇸', dir: 'ltr', bcp47: 'en-US', deeplCode: 'EN-US', googleCode: 'en' },
-  th: { code: 'th', nativeName: 'ไทย',       englishName: 'Thai',       flag: '🇹🇭', dir: 'ltr', bcp47: 'th-TH', deeplCode: null,    googleCode: 'th' },
-  vi: { code: 'vi', nativeName: 'Tiếng Việt', englishName: 'Vietnamese', flag: '🇻🇳', dir: 'ltr', bcp47: 'vi-VN', deeplCode: null,   googleCode: 'vi' },
-  ja: { code: 'ja', nativeName: '日本語',    englishName: 'Japanese',   flag: '🇯🇵', dir: 'ltr', bcp47: 'ja-JP', deeplCode: 'JA',    googleCode: 'ja' },
-  zh: { code: 'zh', nativeName: '中文',      englishName: 'Chinese',    flag: '🇨🇳', dir: 'ltr', bcp47: 'zh-CN', deeplCode: 'ZH',    googleCode: 'zh-CN' },
+  ko: { code: 'ko', nativeName: '한국어',   englishName: 'Korean',     koName: '한국어',   flag: '🇰🇷', dir: 'ltr', bcp47: 'ko-KR', deeplCode: 'KO',    googleCode: 'ko' },
+  en: { code: 'en', nativeName: 'English',  englishName: 'English',    koName: '영어',     flag: '🇺🇸', dir: 'ltr', bcp47: 'en-US', deeplCode: 'EN-US', googleCode: 'en' },
+  th: { code: 'th', nativeName: 'ไทย',       englishName: 'Thai',       koName: '태국어',   flag: '🇹🇭', dir: 'ltr', bcp47: 'th-TH', deeplCode: null,    googleCode: 'th' },
+  vi: { code: 'vi', nativeName: 'Tiếng Việt', englishName: 'Vietnamese', koName: '베트남어', flag: '🇻🇳', dir: 'ltr', bcp47: 'vi-VN', deeplCode: null,   googleCode: 'vi' },
+  ja: { code: 'ja', nativeName: '日本語',    englishName: 'Japanese',   koName: '일본어',   flag: '🇯🇵', dir: 'ltr', bcp47: 'ja-JP', deeplCode: 'JA',    googleCode: 'ja' },
+  zh: { code: 'zh', nativeName: '中文',      englishName: 'Chinese',    koName: '중국어',   flag: '🇨🇳', dir: 'ltr', bcp47: 'zh-CN', deeplCode: 'ZH',    googleCode: 'zh-CN' },
 };
 
 export const LOCALE_ORDER: LocaleCode[] = ['ko', 'en', 'th', 'vi', 'ja', 'zh'];

@@ -240,6 +240,14 @@ NEXT_PUBLIC_POSTHOG_HOST=https://posthog.your-domain.com
 키가 없으면 PostHog 전송만 건너뛰고 내부 수집은 그대로 동작합니다.
 
 ### Tolgee (번역 관리) / DeepL · Google
+
+`DEEPL_API_URL` 을 지정하면 사내 프록시나 테스트 목 서버로 보낼 수 있습니다
+(미지정 시 DeepL 공식 엔드포인트).
+
+DeepL 은 **태국어·베트남어를 지원하지 않습니다.** 그 두 언어는 자동으로 Google 로
+폴백하므로, 6개 언어를 모두 쓰려면 `GOOGLE_TRANSLATE_API_KEY` 도 함께 넣으세요.
+키가 없으면 에디터가 그 사실을 그대로 알려 줍니다 —
+*"태국어는 DeepL이 지원하지 않습니다. GOOGLE_TRANSLATE_API_KEY 를 설정하면…"*
 `TRANSLATION_PROVIDER` 로 우선순위를 정하고, 실패 시 자동 폴백합니다.
 DeepL 은 **태국어·베트남어를 지원하지 않아** 해당 언어는 자동으로 Google 로 넘어갑니다
 (`src/lib/i18n.ts` 의 `deeplCode: null`).

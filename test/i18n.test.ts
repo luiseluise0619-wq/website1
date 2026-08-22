@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { LOCALES } from '@/lib/i18n';
 import {
   fallbackChain, hashText, localeFromSearch, parseAcceptLanguage, resolutionOf,
   setLocalized, t, translationState, withLocaleParam,
@@ -148,5 +149,22 @@ describe('hashText — 원문 변경 감지', () => {
   });
   it('다른 입력은 다른 해시', () => {
     expect(hashText('안녕하세요')).not.toBe(hashText('안녕하세요!'));
+  });
+});
+
+describe('LOCALES 표', () => {
+  it('관리자 화면용 한국어 이름이 모든 언어에 있다', () => {
+    // 오류 문구가 'ไทย는 …' 가 아니라 '태국어는 …' 이라고 말해야 한다
+    expect(Object.values(LOCALES).map((l) => l.koName)).toEqual([
+      '한국어', '영어', '태국어', '베트남어', '일본어', '중국어',
+    ]);
+  });
+
+  it('DeepL 이 지원하지 않는 언어는 deeplCode 가 비어 있다 (폴백 판단의 근거)', () => {
+    expect(LOCALES.th.deeplCode).toBeNull();
+    expect(LOCALES.vi.deeplCode).toBeNull();
+    expect(LOCALES.ja.deeplCode).toBe('JA');
+    // Google 은 6개 언어를 모두 지원한다
+    expect(Object.values(LOCALES).every((l) => l.googleCode)).toBe(true);
   });
 });

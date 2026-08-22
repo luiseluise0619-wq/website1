@@ -32,6 +32,8 @@ export class TranslationError extends Error {
     readonly status?: number,
     /** 키가 없어서 못 쓴 것인가 (호출은 해봤지만 실패한 것과 구분한다) */
     readonly unconfigured = false,
+    /** 제공자가 그 언어를 아예 지원하지 않는가 (DeepL 의 태국어·베트남어) */
+    readonly unsupported = false,
   ) {
     super(message);
     this.name = 'TranslationError';
@@ -49,12 +51,14 @@ async function translateWithDeepL(req: TranslateRequest): Promise<TranslateResul
   const key = process.env.DEEPL_API_KEY;
   if (!key) throw new TranslationError('DEEPL_API_KEY 미설정', 'deepl', undefined, true);
   const targetCode = LOCALES[req.target].deeplCode;
-  if (!targetCode) throw new TranslationError(`DeepL 미지원 언어: ${req.target}`, 'deepl');
+  if (!targetCode) throw new TranslationError(`DeepL 미지원 언어: ${req.target}`, 'deepl', undefined, false, true);
 
-  // 무료 키는 ':fx' 접미사를 가지며 엔드포인트가 다르다
-  const endpoint = key.endsWith(':fx')
-    ? 'https://api-free.deepl.com/v2/translate'
-    : 'https://api.deepl.com/v2/translate';
+  /* 무료 키는 ':fx' 접미사를 가지며 엔드포인트가 다르다.
+     DEEPL_API_URL 을 주면 그쪽으로 보낸다 — 사내 프록시를 거치거나
+     테스트용 목 서버로 돌릴 때 쓴다. */
+  const endpoint =
+    process.env.DEEPL_API_URL ||
+    (key.endsWith(':fx') ? 'https://api-free.deepl.com/v2/translate' : 'https://api.deepl.com/v2/translate');
 
   const res = await fetch(endpoint, {
     method: 'POST',
@@ -135,6 +139,8 @@ export async function translate(req: TranslateRequest): Promise<TranslateResult>
 
   let lastError: unknown;
   let allUnconfigured = true;
+  /* 이 언어를 아예 지원하지 않는 제공자가 있었는가 — 안내 문구가 달라진다 */
+  let unsupportedBy: ProviderName | null = null;
   for (const provider of order) {
     try {
       if (provider === 'deepl') return await translateWithDeepL(req);
@@ -142,16 +148,32 @@ export async function translate(req: TranslateRequest): Promise<TranslateResult>
       if (provider === 'tolgee') return await translateWithTolgee(req);
     } catch (err) {
       lastError = err;
-      if (!(err instanceof TranslationError) || !err.unconfigured) allUnconfigured = false;
+      if (err instanceof TranslationError && err.unsupported) {
+        unsupportedBy = err.provider;
+        // '미지원'은 설정 문제가 아니므로 allUnconfigured 판정에서 제외한다
+      } else if (!(err instanceof TranslationError) || !err.unconfigured) {
+        allUnconfigured = false;
+      }
       // 설정 누락/미지원 언어는 조용히 다음 제공자로 넘어간다.
       // 인증 실패(401/403)는 설정 오류이므로 즉시 알린다.
       if (err instanceof TranslationError && (err.status === 401 || err.status === 403)) throw err;
     }
   }
 
-  /* 어느 것도 설정돼 있지 않으면 마지막 후보(Tolgee)의 메시지를 던지는 대신,
-     실제로 무엇을 설정해야 하는지 알려 준다 — 대부분은 DeepL 을 쓴다. */
-  if (allUnconfigured) throw new TranslationError(NO_PROVIDER_MESSAGE, 'none', undefined, true);
+  if (allUnconfigured) {
+    /* DeepL 은 있는데 그 언어만 지원하지 않는 경우가 흔하다(태국어·베트남어).
+       "Tolgee 미설정" 이라고 말하면 엉뚱한 곳을 보게 된다. */
+    if (unsupportedBy) {
+      throw new TranslationError(
+        `${LOCALES[req.target].koName}는 ${unsupportedBy === 'deepl' ? 'DeepL' : unsupportedBy}이 지원하지 않습니다. ` +
+          'GOOGLE_TRANSLATE_API_KEY 를 설정하면 이 언어도 번역됩니다.',
+        'none',
+        undefined,
+        true,
+      );
+    }
+    throw new TranslationError(NO_PROVIDER_MESSAGE, 'none', undefined, true);
+  }
 
   throw lastError instanceof Error
     ? lastError
