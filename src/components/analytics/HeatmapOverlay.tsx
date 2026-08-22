@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useEditorStore } from '@/store/editorStore';
-import type { ElementStat, PageAnalyticsSummary } from '@/types/analytics';
+import type { ClickPointBucket, ElementStat, PageAnalyticsSummary } from '@/types/analytics';
 
 /* =============================================================================
  * Heatmap Overlay — 에디터 캔버스 위에 클릭 데이터를 덮어 그린다
@@ -78,9 +78,97 @@ export interface HeatmapOverlayProps {
   summary?: PageAnalyticsSummary | null;
 }
 
+/**
+ * 픽셀 히트맵 — 클릭 좌표를 점으로 그린다.
+ * 요소 박스는 '무엇이 눌렸나'를, 이 레이어는 '어디를 눌렀나'를 보여 준다.
+ * (집계는 이미 clickPoints 로 내려오고 있었는데 그리는 곳이 없었다.)
+ *
+ * 좌표 규약: x 는 캔버스 폭 기준 0~1, y 는 문서 기준 절대 px.
+ * 스크롤한 만큼 빼고, 캔버스 배율을 곱해야 화면 좌표가 된다.
+ */
+function PixelLayer({
+  points,
+  frameSelector,
+  containerRef,
+}: {
+  points: ClickPointBucket[];
+  frameSelector: string;
+  containerRef?: React.RefObject<HTMLElement>;
+}) {
+  const canvasRef = React.useRef<HTMLCanvasElement>(null);
+
+  const draw = React.useCallback(() => {
+    const canvas = canvasRef.current;
+    const host = containerRef?.current;
+    if (!canvas || !host) return;
+
+    const frame = document.querySelector<HTMLIFrameElement>(frameSelector);
+    const doc = frame?.contentDocument;
+    const win = doc?.defaultView;
+    if (!frame || !doc || !win) return;
+
+    const hostRect = host.getBoundingClientRect();
+    const frameRect = frame.getBoundingClientRect();
+    const scale = frame.offsetWidth ? frameRect.width / frame.offsetWidth : 1;
+    const offsetX = frameRect.left - hostRect.left;
+    const offsetY = frameRect.top - hostRect.top;
+    const innerWidth = win.innerWidth || frame.offsetWidth || 1440;
+    const scrollY = win.scrollY;
+
+    // 레티나에서 흐릿해지지 않도록 DPR 만큼 실제 픽셀을 확보한다
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.round(hostRect.width * dpr));
+    canvas.height = Math.max(1, Math.round(hostRect.height * dpr));
+    canvas.style.width = `${hostRect.width}px`;
+    canvas.style.height = `${hostRect.height}px`;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, hostRect.width, hostRect.height);
+
+    const max = Math.max(1, ...points.map((p) => p.count));
+    const radius = Math.max(18, 46 * scale);
+
+    for (const point of points) {
+      const x = point.x * innerWidth * scale + offsetX;
+      const y = (point.y - scrollY) * scale + offsetY;
+      if (y < -radius || y > hostRect.height + radius) continue; // 화면 밖은 건너뛴다
+
+      const intensity = point.count / max;
+      const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+      gradient.addColorStop(0, heatColor(intensity, 0.55));
+      gradient.addColorStop(1, heatColor(intensity, 0));
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }, [points, frameSelector, containerRef]);
+
+  React.useEffect(() => {
+    draw();
+    const timer = setInterval(draw, 500); // 스크롤·줌·문서 교체를 함께 따라간다
+    window.addEventListener('resize', draw);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('resize', draw);
+    };
+  }, [draw]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      data-heatmap-pixels="true"
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+    />
+  );
+}
+
 export function HeatmapOverlay({ frameSelector = CANVAS_FRAME_SELECTOR, containerRef, summary: summaryProp }: HeatmapOverlayProps) {
   const enabled = useEditorStore((s) => s.heatmapEnabled);
   const metric = useEditorStore((s) => s.heatmapMetric);
+  const pixelMode = useEditorStore((s) => s.heatmapPixel);
   const storeSummary = useEditorStore((s) => s.analytics);
   const summary = summaryProp ?? storeSummary;
 
@@ -177,8 +265,13 @@ export function HeatmapOverlay({ frameSelector = CANVAS_FRAME_SELECTOR, containe
 
   return (
     <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 40, overflow: 'hidden' }}>
-      {/* --- 요소별 오버레이 --- */}
-      {boxes.filter((box) => box.stat).map((box) => {
+      {/* --- 픽셀 히트맵 (어디를 눌렀나) --- */}
+      {pixelMode && summary.clickPoints?.length ? (
+        <PixelLayer points={summary.clickPoints} frameSelector={frameSelector} containerRef={containerRef} />
+      ) : null}
+
+      {/* --- 요소별 오버레이 (무엇이 눌렸나) --- */}
+      {(pixelMode ? [] : boxes.filter((box) => box.stat)).map((box) => {
         const stat = box.stat;
         const m = stat ? metricValue(stat, metric) : null;
         const isHovered = hovered === box.id;

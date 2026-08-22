@@ -62,6 +62,8 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
   const toggleHeatmap = useEditorStore((s) => s.toggleHeatmap);
   const heatmapMetric = useEditorStore((s) => s.heatmapMetric);
   const setHeatmapMetric = useEditorStore((s) => s.setHeatmapMetric);
+  const heatmapPixel = useEditorStore((s) => s.heatmapPixel);
+  const toggleHeatmapPixel = useEditorStore((s) => s.toggleHeatmapPixel);
   const translating = useEditorStore((s) => s.translating);
   const progress = useEditorStore((s) => s.translationProgress);
   const setTranslating = useEditorStore((s) => s.setTranslating);
@@ -227,6 +229,7 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
           히트맵 {heatmapEnabled ? 'ON' : 'OFF'}
         </button>
         {heatmapEnabled ? (
+          <>
           <select
             value={heatmapMetric}
             onChange={(e) => setHeatmapMetric(e.target.value as 'clicks' | 'ctr' | 'rage' | 'dead')}
@@ -237,6 +240,17 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
             <option value="rage">분노 클릭</option>
             <option value="dead">데드 클릭</option>
           </select>
+
+          {/* 요소 박스는 '무엇이 눌렸나', 픽셀은 '어디를 눌렀나' */}
+          <button
+            type="button"
+            onClick={toggleHeatmapPixel}
+            title="클릭 좌표를 점으로 그립니다 (요소 단위 대신)"
+            style={{ ...btn, background: heatmapPixel ? '#3b82f6' : 'transparent', color: heatmapPixel ? '#fff' : 'inherit' }}
+          >
+            픽셀
+          </button>
+          </>
         ) : null}
       </div>
 

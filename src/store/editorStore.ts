@@ -38,6 +38,8 @@ export interface EditorState {
   /** Analytics — 히트맵 오버레이 */
   heatmapEnabled: boolean;
   heatmapMetric: 'clicks' | 'ctr' | 'rage' | 'dead';
+  /** 요소 박스 대신 클릭 좌표를 점으로 그리는 모드 */
+  heatmapPixel: boolean;
   heatmapRange: { from: string; to: string };
   analytics: PageAnalyticsSummary | null;
   analyticsLoading: boolean;
@@ -84,6 +86,7 @@ export interface EditorActions {
 
   toggleHeatmap: () => void;
   setHeatmapMetric: (metric: 'clicks' | 'ctr' | 'rage' | 'dead') => void;
+  toggleHeatmapPixel: () => void;
   setHeatmapRange: (range: { from: string; to: string }) => void;
   setAnalytics: (summary: PageAnalyticsSummary | null) => void;
   setAnalyticsLoading: (v: boolean) => void;
@@ -126,6 +129,7 @@ export const useEditorStore = create<EditorStore>((set, get) => {
     translationProgress: null,
     heatmapEnabled: false,
     heatmapMetric: 'clicks',
+    heatmapPixel: false,
     heatmapRange: defaultRange(),
     analytics: null,
     analyticsLoading: false,
@@ -249,6 +253,7 @@ export const useEditorStore = create<EditorStore>((set, get) => {
 
     toggleHeatmap: () => set((s) => ({ heatmapEnabled: !s.heatmapEnabled })),
     setHeatmapMetric: (heatmapMetric) => set({ heatmapMetric }),
+    toggleHeatmapPixel: () => set((s) => ({ heatmapPixel: !s.heatmapPixel })),
     setHeatmapRange: (heatmapRange) => set({ heatmapRange, analytics: null }),
     setAnalytics: (analytics) => set({ analytics, analyticsLoading: false, analyticsError: null }),
     setAnalyticsLoading: (analyticsLoading) => set({ analyticsLoading }),
