@@ -84,7 +84,9 @@ async function translateWithGoogle(req: TranslateRequest): Promise<TranslateResu
   const key = process.env.GOOGLE_TRANSLATE_API_KEY;
   if (!key) throw new TranslationError('GOOGLE_TRANSLATE_API_KEY 미설정', 'google', undefined, true);
 
-  const res = await fetch(`https://translation.googleapis.com/language/translate/v2?key=${key}`, {
+  /* DEEPL_API_URL 과 같은 이유로 엔드포인트를 바꿀 수 있게 둔다 */
+  const base = process.env.GOOGLE_TRANSLATE_API_URL || 'https://translation.googleapis.com/language/translate/v2';
+  const res = await fetch(`${base}?key=${encodeURIComponent(key)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
