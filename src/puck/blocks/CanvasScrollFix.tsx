@@ -15,8 +15,16 @@ import { useRenderCtx } from './shared';
  * 주입하므로 실제 사이트의 스크롤 동작에는 영향이 없다.
  * ========================================================================== */
 
+/*
+ * 스크롤러는 반드시 html(문서 스크롤 요소)이어야 한다.
+ * body 에 height:100% + overflow:auto 를 주면 body 자신이 스크롤 컨테이너가
+ * 되는데, 브라우저는 iframe 위에서 굴린 휠을 문서 스크롤 요소(html)에만
+ * 전달한다. html 은 넘칠 것이 없으니 아무 일도 일어나지 않고, 1542px 아래의
+ * 섹션에는 어떤 방법으로도 닿을 수 없었다.
+ */
 const CSS = `
-  html, body { height: 100%; overflow-y: auto; overflow-x: hidden; }
+  html { height: 100%; overflow-y: auto; overflow-x: hidden; }
+  body { min-height: 100%; height: auto !important; overflow: visible !important; }
   /* Puck 래퍼가 프레임 높이에 갇혀 있어도 내용이 온전히 흐르도록 */
   body > div { min-height: 100%; height: auto !important; }
 `;

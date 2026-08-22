@@ -467,9 +467,26 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
      그대로 두면 캔버스 위에서 마우스를 굴려도 페이지가 스크롤되지 않는다.
      받은 만큼 캔버스(iframe body)를 직접 굴려 준다. */
   const forwardWheel = (e: React.WheelEvent) => {
-    const doc = document.querySelector<HTMLIFrameElement>('iframe')?.contentDocument;
-    if (!doc) return;
-    const scroller = doc.body.scrollHeight > doc.body.clientHeight ? doc.body : doc.scrollingElement;
+    const frame = document.querySelector<HTMLIFrameElement>('iframe#preview-frame, iframe');
+    if (!frame) return;
+
+    /* Puck 은 iframe 을 내용 높이만큼 늘리고, 그 바깥 컨테이너에 스크롤을 준다.
+       그래서 굴려야 하는 것은 iframe 내부 문서가 아니라 '스크롤이 걸린 조상'이다.
+       (iframe 문서를 굴리던 예전 코드는 아무 일도 하지 않았다.) */
+    let el: HTMLElement | null = frame.parentElement;
+    while (el) {
+      const canScroll = el.scrollHeight > el.clientHeight + 1;
+      const style = window.getComputedStyle(el).overflowY;
+      if (canScroll && (style === 'auto' || style === 'scroll')) {
+        el.scrollTop += e.deltaY;
+        return;
+      }
+      el = el.parentElement;
+    }
+
+    // 조상 중에 스크롤러가 없으면 캔버스 문서라도 굴려 본다
+    const doc = frame.contentDocument;
+    const scroller = doc?.scrollingElement ?? doc?.documentElement;
     if (scroller) scroller.scrollTop += e.deltaY;
   };
 
@@ -482,6 +499,9 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
         title="페이지 맨 아래에 섹션을 추가합니다"
         style={{
           position: 'absolute',
+          /* 아래의 영역 오버레이들이 DOM 순서상 뒤에 와서 이 버튼을 덮는다.
+             (자유 캔버스가 화면 아래쪽까지 차면 버튼이 눌리지 않았다) */
+          zIndex: 20,
           bottom: 16,
           left: '50%',
           transform: 'translateX(-50%)',
