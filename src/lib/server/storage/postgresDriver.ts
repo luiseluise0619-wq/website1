@@ -306,17 +306,31 @@ export const postgresInquiryStorage: InquiryStorage = {
         LIMIT $${params.length}`,
       params,
     );
-    return rows.map((r): InquiryRecord => ({
-      id: r.id,
-      createdAt: new Date(r.created_at).toISOString(),
-      formName: r.form_name,
-      pageId: r.page_id,
-      path: r.path,
-      locale: r.locale,
-      fields: r.fields,
-      utm: r.utm ?? undefined,
-      country: r.country,
-      status: r.status,
-    }));
+    return rows.map(toInquiry);
+  },
+
+  async updateStatus(id, status) {
+    await ensureSchema();
+    const { rows } = await getPool().query(
+      `UPDATE inquiries SET status = $2 WHERE id = $1
+       RETURNING id, created_at, form_name, page_id, path, locale, fields, utm, country, status`,
+      [id, status],
+    );
+    return rows[0] ? toInquiry(rows[0]) : null;
   },
 };
+
+function toInquiry(r: Record<string, unknown>): InquiryRecord {
+  return {
+    id: String(r.id),
+    createdAt: new Date(r.created_at as string).toISOString(),
+    formName: String(r.form_name),
+    pageId: String(r.page_id),
+    path: String(r.path),
+    locale: String(r.locale),
+    fields: r.fields as Record<string, string>,
+    utm: (r.utm as Record<string, string> | null) ?? undefined,
+    country: (r.country as string | null) ?? null,
+    status: r.status as InquiryRecord['status'],
+  };
+}

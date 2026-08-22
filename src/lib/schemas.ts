@@ -41,6 +41,11 @@ export const inquiryRequestSchema = z.object({
   utm: z.record(z.string().max(32), z.string().max(256)).optional(),
 });
 
+export const inquiryStatusSchema = z.object({
+  id: z.string().min(1).max(64),
+  status: z.enum(['new', 'read', 'archived']),
+});
+
 /* ---- 분석 수집 -------------------------------------------------------------- */
 
 export const analyticsBatchSchema = z.object({

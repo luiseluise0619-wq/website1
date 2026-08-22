@@ -155,4 +155,32 @@ export const fsInquiryStorage: InquiryStorage = {
       .reverse();
     return filters.limit ? rows.slice(0, filters.limit) : rows;
   },
+
+  async updateStatus(id, status) {
+    /* 추가 전용(ndjson) 파일이라 상태 변경은 전체를 다시 쓴다.
+       문의 건수는 사람이 읽는 규모(수천 건)라 이 정도면 충분하다. */
+    let raw = '';
+    try {
+      raw = await fs.readFile(INQUIRIES_FILE, 'utf8');
+    } catch {
+      return null;
+    }
+    let updated: InquiryRecord | null = null;
+    const lines = raw
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => {
+        try {
+          const record = JSON.parse(line) as InquiryRecord;
+          if (record.id !== id) return line;
+          updated = { ...record, status };
+          return JSON.stringify(updated);
+        } catch {
+          return line;
+        }
+      });
+    if (!updated) return null;
+    await fs.writeFile(INQUIRIES_FILE, `${lines.join('\n')}\n`, 'utf8');
+    return updated;
+  },
 };

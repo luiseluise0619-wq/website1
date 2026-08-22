@@ -74,6 +74,9 @@ const rejectingInquiryStorage: InquiryStorage = {
   async list() {
     return [];
   },
+  async updateStatus() {
+    throw new StorageReadOnlyError(READ_ONLY_REASON);
+  },
 };
 
 export const pageStorage: PageStorage = hasPostgres()

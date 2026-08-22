@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { inquiryStorage, StorageReadOnlyError } from '@/lib/server/storage';
 import { assertAdmin } from '@/lib/server/auth';
 import { getPageByPath } from '@/lib/server/pageStore';
-import { formatZodError, inquiryRequestSchema } from '@/lib/schemas';
+import { formatZodError, inquiryRequestSchema, inquiryStatusSchema } from '@/lib/schemas';
 import { clientIp, createRateLimiter } from '@/lib/server/rateLimit';
 import type { LocaleCode } from '@/types/schema';
 import type { InquiryRecord } from '@/lib/server/storage/types';
@@ -60,4 +60,24 @@ export async function GET(request: Request) {
     limit: Number(url.searchParams.get('limit') ?? 200),
   });
   return NextResponse.json({ inquiries });
+}
+
+/** PATCH /api/inquiry — 처리 상태 변경 (관리자 전용) */
+export async function PATCH(request: Request) {
+  const auth = assertAdmin();
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+  const parsed = inquiryStatusSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: formatZodError(parsed.error) }, { status: 400 });
+  }
+
+  try {
+    const updated = await inquiryStorage.updateStatus(parsed.data.id, parsed.data.status);
+    if (!updated) return NextResponse.json({ error: '문의를 찾을 수 없습니다.' }, { status: 404 });
+    return NextResponse.json({ inquiry: updated });
+  } catch (err) {
+    const status = err instanceof StorageReadOnlyError ? 503 : 500;
+    return NextResponse.json({ error: err instanceof Error ? err.message : '변경 실패' }, { status });
+  }
 }

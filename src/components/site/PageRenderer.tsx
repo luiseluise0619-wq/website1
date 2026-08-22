@@ -84,10 +84,14 @@ export function PageRenderer({ page, initialLocale, chrome = true, analytics = t
 
   return (
     <RenderCtx.Provider value={ctx}>
-      {chrome ? <SiteNav locale={locale} activePath={page.path} onLocaleChange={handleLocaleChange} /> : null}
-      <main ref={rootRef} data-page-id={page.id} data-locale={locale}>
-        <Render config={puckConfig} data={page.content as unknown as Data} />
-      </main>
+      {/* 추적 루트가 <main> 이면 네비게이션 클릭이 기록되지 않는다.
+          어느 메뉴로 이탈했는지가 곧 IA 개선의 근거이므로 함께 감싼다. */}
+      <div ref={rootRef} data-page-id={page.id} data-locale={locale}>
+        {chrome ? <SiteNav locale={locale} activePath={page.path} onLocaleChange={handleLocaleChange} /> : null}
+        <main>
+          <Render config={puckConfig} data={page.content as unknown as Data} />
+        </main>
+      </div>
     </RenderCtx.Provider>
   );
 }

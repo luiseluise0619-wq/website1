@@ -186,6 +186,10 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
         <a href={page.path} target="_blank" rel="noreferrer" style={{ ...btn, textDecoration: 'none' }}>
           미리보기 ↗
         </a>
+        {/* 접수된 문의를 볼 곳이 없으면 BUSINESS 폼은 있으나 마나다 */}
+        <a href="/admin/inquiries" style={{ ...btn, textDecoration: 'none' }}>
+          문의
+        </a>
         <button type="button" onClick={() => onSave(false)} disabled={saving} style={btn}>
           {saving ? '저장 중…' : dirty ? '저장 *' : '저장됨'}
         </button>

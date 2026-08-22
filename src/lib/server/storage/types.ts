@@ -60,6 +60,8 @@ export interface InquiryStorage {
   readonly readOnly: boolean;
   insert(record: InquiryRecord): Promise<InquiryRecord>;
   list(filters?: { formName?: string; limit?: number }): Promise<InquiryRecord[]>;
+  /** 처리 상태 변경 — 없는 id 면 null */
+  updateStatus(id: string, status: InquiryRecord['status']): Promise<InquiryRecord | null>;
 }
 
 /** 저장이 불가능한 환경에서 명확히 실패시키기 위한 오류 */
