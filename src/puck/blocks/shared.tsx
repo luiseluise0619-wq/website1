@@ -19,12 +19,15 @@ export interface RenderContext {
   siteDefault: LocaleCode;
   /** 에디터 캔버스 내부인가 (링크 이동 차단, 클릭 추적 비활성) */
   isEditing: boolean;
+  /** 자유 캔버스가 설계된 폭(px). 좁은 화면에서 이 비율로 줄인다. */
+  designWidth: number;
 }
 
 export const RenderCtx = React.createContext<RenderContext>({
   locale: 'ko',
   siteDefault: 'ko',
   isEditing: false,
+  designWidth: 1440,
 });
 
 export function useRenderCtx(): RenderContext {

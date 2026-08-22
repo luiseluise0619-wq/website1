@@ -143,8 +143,13 @@ export function EditorShell({ initialPages, storage }: { initialPages: PageDocum
   );
 
   const renderCtxValue = React.useMemo(
-    () => ({ locale: editingLocale, siteDefault: activePage?.sourceLocale ?? 'ko', isEditing: true }),
-    [editingLocale, activePage?.sourceLocale],
+    () => ({
+      locale: editingLocale,
+      siteDefault: activePage?.sourceLocale ?? 'ko',
+      isEditing: true,
+      designWidth: activePage?.canvasWidth || 1440,
+    }),
+    [editingLocale, activePage?.sourceLocale, activePage?.canvasWidth],
   );
 
   if (!pages.length || !activePage) {

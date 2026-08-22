@@ -107,6 +107,12 @@ export function toCSS(style: ElementStyle, opts: ResolveOptions = {}): CSSProper
     css.position = style.position ?? 'absolute';
     css.left = len(style.x) ?? 0;
     css.top = len(style.y) ?? 0;
+    /* 휴대폰에서는 자유 캔버스가 세로 스택으로 풀린다(globals.css). 그때 흐름
+       순서가 DOM 순서가 아니라 화면에서 보이던 순서를 따르도록 order 를 남긴다.
+       (위 → 아래, 같은 높이면 왼쪽 → 오른쪽) */
+    const y = typeof style.y === 'number' ? style.y : 0;
+    const x = typeof style.x === 'number' ? style.x : 0;
+    css.order = Math.round(y * 10 + x / 100);
   } else {
     css.position = style.position && style.position !== 'absolute' ? style.position : 'relative';
     if (style.position === 'absolute') {

@@ -220,12 +220,34 @@ export function EmbedBlock(props: Block<{ html: string }>) {
 /* ---- Container (Flex / Grid) ---------------------------------------------- */
 
 export function ContainerBlock(props: Block<ContainerProps> & { zoneId?: string }) {
-  const css = blockCSS(props, { free: props.free });
   const layout = props.layoutMode ?? 'flex';
   const elementId = props.trackingId || props.id || 'container';
 
+  /* 배치는 아래 DropZone 한 곳만 맡는다.
+     바깥 div 에도 display:grid 가 남으면 그리드가 이중으로 적용돼, 안쪽
+     DropZone 이 첫 번째 칸(1/3 폭)에만 들어가고 카드가 그 안에서 다시 3열로
+     쪼개진다 — 카드가 원래 폭의 9분의 1이 되는 원인이었다. */
+  const {
+    display: _display,
+    gridTemplateColumns: _cols,
+    gridAutoRows: _rows,
+    flexDirection: _dir,
+    justifyContent: _justify,
+    alignItems: _align,
+    flexWrap: _wrap,
+    gap: _gap,
+    ...css
+  } = blockCSS(props, { free: props.free });
+
   return (
-    <div style={css} data-element-id={elementId} data-element-type="Container" data-element-name={props.name}>
+    <div
+      style={css}
+      data-element-id={elementId}
+      data-element-type="Container"
+      data-element-name={props.name}
+      /* 휴대폰에서 여러 열을 한 열로 접기 위해 CSS 가 읽는 표시 (globals.css) */
+      data-layout={layout}
+    >
       {/* DropZone 이 Puck 의 중첩 편집 지점이다 — 관리자가 여기에 블록을 끌어다 놓는다 */}
       <DropZone
         zone="items"
@@ -285,11 +307,35 @@ export function SectionBlock(props: Block<ContainerProps>) {
  */
 export function FreeCanvasBlock(props: Block<{ height: number; snap?: number }>) {
   const css = blockCSS(props, { free: false });
+  const { isEditing, designWidth } = useRenderCtx();
   const elementId = props.trackingId || props.id || 'canvas';
+  const height = props.height ?? 640;
+
+  /* 자유 배치는 설계 폭(기본 1440px)을 전제로 좌표가 박혀 있다. 휴대폰에서는
+     그 좌표가 화면 밖으로 나가 제목이 잘려 보이므로, 아트보드 전체를 화면
+     폭에 맞춰 비례 축소한다. 에디터 안에서는 Puck 이 이미 확대/축소를
+     담당하므로 건드리지 않는다(두 번 줄면 좌표 계산이 어긋난다). */
+  const scale = `min(1, 100vw / ${designWidth}px)`;
+
+  const shell: React.CSSProperties = isEditing
+    ? { ...css, position: 'relative', width: '100%', height, overflow: 'hidden' }
+    : { ...css, position: 'relative', width: '100%', height: `calc(${height}px * ${scale})`, overflow: 'hidden' };
+
+  const inner: React.CSSProperties = isEditing
+    ? { position: 'absolute', inset: 0 }
+    : {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: designWidth,
+        height,
+        transform: `scale(${scale})`,
+        transformOrigin: 'top left',
+      };
 
   return (
     <div
-      style={{ ...css, position: 'relative', width: '100%', height: props.height ?? 640, overflow: 'hidden' }}
+      style={shell}
       data-element-id={elementId}
       data-element-type="FreeCanvas"
       data-free-canvas="true"
@@ -297,7 +343,7 @@ export function FreeCanvasBlock(props: Block<{ height: number; snap?: number }>)
       {/* 자식들은 각자 position:absolute + left/top 으로 자리를 잡는다.
           FreeCtx 가 "여기서는 placement 좌표를 쓰라"고 알린다. */}
       <FreeCtx.Provider value>
-        <DropZone zone="layers" style={{ position: 'absolute', inset: 0 }} />
+        <DropZone zone="layers" style={inner} />
       </FreeCtx.Provider>
     </div>
   );

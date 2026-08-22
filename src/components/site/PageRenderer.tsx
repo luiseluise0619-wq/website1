@@ -78,15 +78,21 @@ export function PageRenderer({ page, initialLocale, chrome = true, analytics = t
   }, [locale]);
 
   const ctx = React.useMemo(
-    () => ({ locale, siteDefault: page.sourceLocale ?? DEFAULT_LOCALE, isEditing: false }),
-    [locale, page.sourceLocale],
+    () => ({
+      locale,
+      siteDefault: page.sourceLocale ?? DEFAULT_LOCALE,
+      isEditing: false,
+      /* 자유 캔버스가 이 폭 기준으로 그려졌다 — 좁은 화면에서 이 비율로 줄인다 */
+      designWidth: page.canvasWidth || 1440,
+    }),
+    [locale, page.sourceLocale, page.canvasWidth],
   );
 
   return (
     <RenderCtx.Provider value={ctx}>
       {/* 추적 루트가 <main> 이면 네비게이션 클릭이 기록되지 않는다.
           어느 메뉴로 이탈했는지가 곧 IA 개선의 근거이므로 함께 감싼다. */}
-      <div ref={rootRef} data-page-id={page.id} data-locale={locale}>
+      <div ref={rootRef} data-ks-site="true" data-page-id={page.id} data-locale={locale}>
         {chrome ? <SiteNav locale={locale} activePath={page.path} onLocaleChange={handleLocaleChange} /> : null}
         <main>
           <Render config={puckConfig} data={page.content as unknown as Data} />

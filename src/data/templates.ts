@@ -160,7 +160,17 @@ function card(
 ): { block: PuckBlock; zone: [string, PuckBlock[]] } {
   const id = ctx.id();
   return {
-    block: { type: 'Container', props: { id } },
+    /* 카드는 이미지 → 제목 → 본문이 세로로 쌓여야 한다.
+       방향을 지정하지 않으면 컨테이너 기본값(row)이라 셋이 옆으로 늘어선다. */
+    block: {
+      type: 'Container',
+      props: {
+        id,
+        name: '카드',
+        layoutMode: 'flex',
+        style: { width: '100%', flex: { direction: 'column', gap: 10, align: 'stretch' } },
+      },
+    },
     zone: [
       `${id}:items`,
       [
