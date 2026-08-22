@@ -68,6 +68,9 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
   const dirty = useEditorStore((s) => s.dirty);
   const saving = useEditorStore((s) => s.saving);
   const updatePageMeta = useEditorStore((s) => s.updatePageMeta);
+  const lastSavedAt = useEditorStore((s) => s.lastSavedAt);
+  const showBadges = useEditorStore((s) => s.showTranslationBadges);
+  const toggleBadges = useEditorStore((s) => s.toggleTranslationBadges);
   const applyTemplate = useEditorStore((s) => s.applyTemplate);
 
   const [message, setMessage] = React.useState<string | null>(null);
@@ -202,6 +205,16 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
         <button type="button" onClick={handleTranslateAll} disabled={translating} style={{ ...btn, marginLeft: 4 }}>
           {translating ? `번역 중 ${progress?.done ?? 0}/${progress?.total ?? 0}` : '전체 자동번역'}
         </button>
+
+        {/* 번역 상태 배지(자동/미번역/원문변경)를 인스펙터에 표시할지 */}
+        <button
+          type="button"
+          onClick={toggleBadges}
+          title="입력칸 옆의 번역 상태 표시를 켜고 끕니다"
+          style={{ ...btn, opacity: showBadges ? 1 : 0.55 }}
+        >
+          번역 상태 {showBadges ? 'ON' : 'OFF'}
+        </button>
       </div>
 
       {/* --- 히트맵 --- */}
@@ -251,7 +264,14 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
             </span>
           ) : null}
         </a>
-        <button type="button" onClick={() => onSave(false)} disabled={saving} style={btn}>
+        <button
+          type="button"
+          onClick={() => onSave(false)}
+          disabled={saving}
+          /* 마지막으로 저장한 시각을 알려 준다 — 자동 저장이 없으므로 중요한 정보다 */
+          title={lastSavedAt ? `마지막 저장 ${new Date(lastSavedAt).toLocaleTimeString('ko-KR')}` : '아직 저장하지 않았습니다'}
+          style={btn}
+        >
           {saving ? '저장 중…' : dirty ? '저장 *' : '저장됨'}
         </button>
         <button type="button" onClick={() => onSave(true)} disabled={saving} style={{ ...btn, background: '#22c55e', color: '#04210f', fontWeight: 700 }}>

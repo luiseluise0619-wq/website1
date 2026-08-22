@@ -68,10 +68,35 @@ export function RightPanel({ children, isLoading, hasSelection, analytics, tab, 
         </div>
 
         {tab === 'seo' ? <SeoPanel /> : null}
-        {tab === 'analytics' ? <DropOffPanel summary={analytics} /> : null}
+        {tab === 'analytics' ? <AnalyticsTab summary={analytics} /> : null}
       </div>
     </div>
   );
+}
+
+/**
+ * 분석 탭 — 불러오는 중과 실패를 구분해 보여 준다.
+ * 예전에는 둘 다 "데이터를 불러오면…" 이라고만 떠서, 401 이나 DB 오류가
+ * 나도 그냥 데이터가 없는 것처럼 보였다.
+ */
+function AnalyticsTab({ summary }: { summary: PageAnalyticsSummary | null }) {
+  const loading = useEditorStore((s) => s.analyticsLoading);
+  const error = useEditorStore((s) => s.analyticsError);
+
+  if (error) {
+    return (
+      <div style={{ padding: 16, fontSize: 12, color: '#b91c1c', lineHeight: 1.6 }}>
+        <strong>분석 데이터를 불러오지 못했습니다</strong>
+        <p style={{ margin: '6px 0 0', color: '#7f1d1d' }}>{error}</p>
+      </div>
+    );
+  }
+
+  if (loading && !summary) {
+    return <div style={{ padding: 16, fontSize: 12, opacity: 0.6 }}>분석 데이터를 불러오는 중…</div>;
+  }
+
+  return <DropOffPanel summary={summary} />;
 }
 
 /**
