@@ -1,0 +1,36 @@
+# =============================================================================
+# 무료 자동번역 스택 — 유료 API 키 없이 6개 언어 번역을 돌리기 위한 구성.
+#
+#   docker compose up -d
+#   echo 'LIBRETRANSLATE_URL=http://localhost:5000' >> .env.local
+#   npm run dev
+#
+# LibreTranslate 는 첫 기동 때 언어 모델을 내려받으므로 몇 분 걸린다.
+# LT_LOAD_ONLY 로 필요한 언어만 받아 이미지 크기와 기동 시간을 줄인다.
+# =============================================================================
+services:
+  libretranslate:
+    image: libretranslate/libretranslate:latest
+    container_name: ksoho-libretranslate
+    ports:
+      - '5000:5000'
+    environment:
+      # 이 프로젝트가 쓰는 6개 언어만 (ko en th vi ja zh)
+      LT_LOAD_ONLY: 'ko,en,th,vi,ja,zh'
+      # 내부망에서만 쓴다면 키 없이 둔다. 외부에 열 거라면 LT_API_KEYS 를 켜고
+      # .env.local 의 LIBRETRANSLATE_API_KEY 와 맞춘다.
+      LT_DISABLE_WEB_UI: 'true'
+    volumes:
+      # 모델을 컨테이너 밖에 두어 재기동 때 다시 내려받지 않게 한다
+      - libretranslate-models:/home/libretranslate/.local/share/argos-translate
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:5000/languages || exit 1']
+      interval: 30s
+      timeout: 5s
+      retries: 10
+      # 모델 내려받는 동안 unhealthy 로 재시작되지 않도록 넉넉히 준다
+      start_period: 10m
+    restart: unless-stopped
+
+volumes:
+  libretranslate-models:

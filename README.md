@@ -5,7 +5,7 @@
 어디서 이탈하는지 히트맵으로 확인할 수 있습니다.
 
 ```
-Next.js 14 (App Router) · TypeScript · Puck · Zustand · PostHog · Tolgee/DeepL
+Next.js 14 (App Router) · TypeScript · Puck · Zustand · PostHog · LibreTranslate/DeepL
 ```
 
 ## 빠른 시작
@@ -46,7 +46,7 @@ node scripts/seed-analytics.mjs        # 합성 클릭·스크롤·이탈 이벤
 > 원 요구사항의 **X/Y/Z 자유 배치**는 Puck 의 흐름 배치만으로는 부족하므로,
 > `FreeCanvas` 블록을 직접 만들어 절대좌표 레이어를 제공합니다 (`src/puck/blocks/index.tsx`).
 
-분석은 **PostHog**(히트맵·세션 리플레이·퍼널, 셀프호스팅 가능), 번역은 **Tolgee + DeepL/Google**.
+분석은 **PostHog**(히트맵·세션 리플레이·퍼널, 셀프호스팅 가능), 번역은 **LibreTranslate·Ollama**(무료·셀프호스팅) 또는 **DeepL/Google**.
 둘 다 우리 수집·저장 계층과 **병행**합니다 — 원본 데이터를 직접 소유하기 위해서입니다.
 
 ## 아키텍처
@@ -88,7 +88,7 @@ src/
 │  ├─ style.ts             # ElementStyle → CSS (에디터·사이트 공용)
 │  ├─ i18n.ts              # 로케일 정의 · 폴백 해석 · 브라우저 감지 · 번역 상태
 │  ├─ sanitize.ts          # 저장 시점 HTML 정화 (XSS 경계)
-│  ├─ translate/           # DeepL·Google·Tolgee 제공자 / 문서 워커 / 일괄 파이프라인
+│  ├─ translate/           # DeepL·Google·LibreTranslate·Ollama·Tolgee / 문서 워커 / 일괄 파이프라인
 │  ├─ analytics/           # 전송 계층(PostHog·GA4·Mixpanel·Umami) · 방문자 식별
 │  └─ server/              # 페이지 저장소 · 이벤트 저장소/집계 (교체 가능한 경계)
 ├─ puck/                   # 블록 라이브러리 + 커스텀 인스펙터 필드
@@ -239,18 +239,62 @@ NEXT_PUBLIC_POSTHOG_HOST=https://posthog.your-domain.com
 ```
 키가 없으면 PostHog 전송만 건너뛰고 내부 수집은 그대로 동작합니다.
 
-### Tolgee (번역 관리) / DeepL · Google
+### 자동번역 — 유료 API 없이 무료로 쓰기
 
-`DEEPL_API_URL` 을 지정하면 사내 프록시나 테스트 목 서버로 보낼 수 있습니다
-(미지정 시 DeepL 공식 엔드포인트).
+번역 제공자는 다음 순서로 시도하고, 안 되면 다음으로 자동 폴백합니다:
 
-DeepL 은 **태국어·베트남어를 지원하지 않습니다.** 그 두 언어는 자동으로 Google 로
-폴백하므로, 6개 언어를 모두 쓰려면 `GOOGLE_TRANSLATE_API_KEY` 도 함께 넣으세요.
-키가 없으면 에디터가 그 사실을 그대로 알려 줍니다 —
-*"태국어는 DeepL이 지원하지 않습니다. GOOGLE_TRANSLATE_API_KEY 를 설정하면…"*
-`TRANSLATION_PROVIDER` 로 우선순위를 정하고, 실패 시 자동 폴백합니다.
-DeepL 은 **태국어·베트남어를 지원하지 않아** 해당 언어는 자동으로 Google 로 넘어갑니다
-(`src/lib/i18n.ts` 의 `deeplCode: null`).
+| 순서 | 제공자 | 비용 | 설정 |
+|---|---|---|---|
+| 1 | **DeepL** | 유료(무료 한도 50만자/월) | `DEEPL_API_KEY` |
+| 2 | **Google Translate** | 유료 | `GOOGLE_TRANSLATE_API_KEY` |
+| 3 | **LibreTranslate** | **무료·무제한** (직접 띄움, AGPL) | `LIBRETRANSLATE_URL` |
+| 4 | **Ollama** (로컬 LLM) | **무료·무제한** (직접 띄움, MIT) | `OLLAMA_URL` |
+| 5 | **Tolgee** | 셀프호스팅 시 무료 | `TOLGEE_API_URL` + `TOLGEE_API_KEY` |
+
+`TRANSLATION_PROVIDER` 로 1순위를 바꿀 수 있습니다. **키를 하나도 넣지 않아도**
+3번이나 4번만 띄워 두면 6개 언어 자동번역이 그대로 동작합니다.
+
+#### 1) LibreTranslate — 가장 간단한 무료 경로
+
+```bash
+docker compose up -d          # 저장소의 docker-compose.yml — 6개 언어 모델만 받는다
+# 또는: docker run -d -p 5000:5000 libretranslate/libretranslate
+
+# .env.local
+LIBRETRANSLATE_URL=http://localhost:5000
+TRANSLATION_PROVIDER=libretranslate   # 유료 API 를 아예 안 쓸 때
+```
+
+호출당 비용도 한도도 없고, 원문이 외부로 나가지 않습니다(제품 기획서·미공개
+카피를 번역할 때 중요합니다). 인스턴스에 해당 언어 모델이 깔려 있어야 하며,
+없으면 400 을 돌려주므로 그 언어만 다음 제공자로 넘어갑니다.
+공개 인스턴스를 쓸 때는 `LIBRETRANSLATE_API_KEY` 도 함께 넣으세요.
+
+#### 2) Ollama — 로컬 LLM 번역
+
+```bash
+ollama serve && ollama pull qwen2.5:7b
+# .env.local
+OLLAMA_URL=http://localhost:11434
+OLLAMA_MODEL=qwen2.5:7b     # gemma3:12b, exaone3.5 등으로 교체 가능
+```
+
+마케팅 카피처럼 문맥이 중요한 문장은 전용 MT 엔진보다 자연스러운 편입니다.
+온도 0 으로 한 문장씩 보내 결과 순서가 어긋나지 않게 하고, LLM 이 습관적으로
+두르는 따옴표·코드펜스는 벗겨 냅니다(`cleanLlmOutput`).
+느린 대신 비용이 0 이므로 폴백 위치(4순위)가 적당합니다.
+
+#### 유료 API 를 쓸 때
+
+`DEEPL_API_URL` / `GOOGLE_TRANSLATE_API_URL` 을 지정하면 사내 프록시나 테스트
+목 서버로 보낼 수 있습니다(미지정 시 공식 엔드포인트).
+
+DeepL 은 **태국어·베트남어를 지원하지 않아**(`src/lib/i18n.ts` 의 `deeplCode: null`)
+그 두 언어는 네트워크를 타지 않고 바로 다음 제공자로 넘어갑니다. 받을 곳이
+하나도 없으면 에디터가 무엇을 하면 되는지 그대로 알려 줍니다 —
+*"태국어는 DeepL이(가) 지원하지 않습니다. LIBRETRANSLATE_URL(무료·셀프호스팅) 또는…"*
+
+현재 어떤 제공자가 살아 있는지는 `GET /api/health` 의 `features` 로 확인합니다.
 
 ### 저장소를 DB 로 교체
 `src/lib/server/pageStore.ts` 와 `analyticsStore.ts` 의 함수 시그니처만 유지하면
@@ -263,14 +307,17 @@ DeepL 은 **태국어·베트남어를 지원하지 않아** 해당 언어는 �
 | 에디터 엔진 | **Puck** (`@puckeditor/core`) | 드래그앤드롭 캔버스, JSON 저장, 인스펙터 |
 | 분석 | **PostHog** | 히트맵·세션 리플레이·퍼널 (셀프호스팅 가능) |
 | 분석(경량) | **Umami** | 병행 수집 |
-| 번역 | **Tolgee** + DeepL / Google | 자동번역 및 번역 관리 |
+| 번역(무료) | **LibreTranslate** (AGPL) | 셀프호스팅 기계번역 — 키·한도 없음 |
+| 번역(무료) | **Ollama** (MIT) | 로컬 LLM 번역 — 문맥 있는 카피에 강함 |
+| 번역(유료) | **DeepL** / **Google Translate** | 품질 우선 경로 |
+| 번역 관리 | **Tolgee** | 번역 이력·검수 상태 관리 |
 | HTML 정화 | **DOMPurify** (`isomorphic-dompurify`) | 저장 시점 XSS 차단 |
 | 입력 검증 | **Zod** | API 요청 스키마 검증·정규화 |
 | 아이콘 | **Lucide** (`lucide-react`) | Icon 블록 |
 | 캐러셀 | **Embla Carousel** | 브랜드·제품 슬라이더 |
 | 폰트 | **Google Fonts** (`next/font`) | Noto Sans KR/Thai/JP/SC, Inter |
 | DB | **Postgres** (`pg`) | 페이지·이벤트·문의 저장 |
-| 테스트 | **Vitest** | 핵심 로직 87개 테스트 |
+| 테스트 | **Vitest** | 핵심 로직 237개 테스트 |
 
 ### 직접 만들지 않고 라이브러리를 쓴 이유
 

@@ -19,15 +19,20 @@ export interface LocaleDefinition {
   deeplCode: string | null;
   /** Google Cloud Translation 대상 코드 */
   googleCode: string;
+  /**
+   * LibreTranslate(오픈소스, 셀프호스팅) 대상 코드 — ISO 639-1 단문자열.
+   * 인스턴스에 해당 언어 모델이 깔려 있어야 실제로 번역된다(없으면 400).
+   */
+  libreCode: string;
 }
 
 export const LOCALES: Record<LocaleCode, LocaleDefinition> = {
-  ko: { code: 'ko', nativeName: '한국어',   englishName: 'Korean',     koName: '한국어',   flag: '🇰🇷', dir: 'ltr', bcp47: 'ko-KR', deeplCode: 'KO',    googleCode: 'ko' },
-  en: { code: 'en', nativeName: 'English',  englishName: 'English',    koName: '영어',     flag: '🇺🇸', dir: 'ltr', bcp47: 'en-US', deeplCode: 'EN-US', googleCode: 'en' },
-  th: { code: 'th', nativeName: 'ไทย',       englishName: 'Thai',       koName: '태국어',   flag: '🇹🇭', dir: 'ltr', bcp47: 'th-TH', deeplCode: null,    googleCode: 'th' },
-  vi: { code: 'vi', nativeName: 'Tiếng Việt', englishName: 'Vietnamese', koName: '베트남어', flag: '🇻🇳', dir: 'ltr', bcp47: 'vi-VN', deeplCode: null,   googleCode: 'vi' },
-  ja: { code: 'ja', nativeName: '日本語',    englishName: 'Japanese',   koName: '일본어',   flag: '🇯🇵', dir: 'ltr', bcp47: 'ja-JP', deeplCode: 'JA',    googleCode: 'ja' },
-  zh: { code: 'zh', nativeName: '中文',      englishName: 'Chinese',    koName: '중국어',   flag: '🇨🇳', dir: 'ltr', bcp47: 'zh-CN', deeplCode: 'ZH',    googleCode: 'zh-CN' },
+  ko: { code: 'ko', nativeName: '한국어',   englishName: 'Korean',     koName: '한국어',   flag: '🇰🇷', dir: 'ltr', bcp47: 'ko-KR', deeplCode: 'KO',    googleCode: 'ko', libreCode: 'ko' },
+  en: { code: 'en', nativeName: 'English',  englishName: 'English',    koName: '영어',     flag: '🇺🇸', dir: 'ltr', bcp47: 'en-US', deeplCode: 'EN-US', googleCode: 'en', libreCode: 'en' },
+  th: { code: 'th', nativeName: 'ไทย',       englishName: 'Thai',       koName: '태국어',   flag: '🇹🇭', dir: 'ltr', bcp47: 'th-TH', deeplCode: null,    googleCode: 'th', libreCode: 'th' },
+  vi: { code: 'vi', nativeName: 'Tiếng Việt', englishName: 'Vietnamese', koName: '베트남어', flag: '🇻🇳', dir: 'ltr', bcp47: 'vi-VN', deeplCode: null,   googleCode: 'vi', libreCode: 'vi' },
+  ja: { code: 'ja', nativeName: '日本語',    englishName: 'Japanese',   koName: '일본어',   flag: '🇯🇵', dir: 'ltr', bcp47: 'ja-JP', deeplCode: 'JA',    googleCode: 'ja', libreCode: 'ja' },
+  zh: { code: 'zh', nativeName: '中文',      englishName: 'Chinese',    koName: '중국어',   flag: '🇨🇳', dir: 'ltr', bcp47: 'zh-CN', deeplCode: 'ZH',    googleCode: 'zh-CN', libreCode: 'zh' },
 };
 
 export const LOCALE_ORDER: LocaleCode[] = ['ko', 'en', 'th', 'vi', 'ja', 'zh'];

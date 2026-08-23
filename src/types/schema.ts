@@ -54,10 +54,19 @@ export type LocalizedText = Partial<Record<LocaleCode, string>> & {
   _meta?: Partial<Record<LocaleCode, TranslationMeta>>;
 };
 
+/**
+ * 번역 제공자 이름.
+ * deepl/google 은 유료 API, libretranslate/ollama 는 직접 띄워서 무료로 쓰는
+ * 오픈소스 엔진, tolgee 는 키를 대신 들고 있는 번역 관리 플랫폼이다.
+ * 서버(providers.ts)·클라이언트(client.ts)·문서 메타가 같은 값을 쓰도록
+ * 서버 전용이 아닌 이 파일에 둔다.
+ */
+export type ProviderName = 'deepl' | 'google' | 'libretranslate' | 'ollama' | 'tolgee' | 'none';
+
 export interface TranslationMeta {
   /** 'manual' = 사람이 입력/검수, 'auto' = 기계번역 결과 */
   source: 'manual' | 'auto';
-  provider?: 'deepl' | 'google' | 'tolgee' | 'none';
+  provider?: ProviderName;
   /** 번역 시점의 원문 해시 — 원문이 바뀌면 stale 로 표시 */
   sourceHash?: string;
   translatedAt?: string;

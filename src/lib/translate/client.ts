@@ -1,7 +1,7 @@
 'use client';
 
 import { fetchJson } from '@/lib/fetchJson';
-import type { LocaleCode } from '@/types/schema';
+import type { LocaleCode, ProviderName } from '@/types/schema';
 
 /* =============================================================================
  * 번역 API 클라이언트 (브라우저 → /api/translate)
@@ -16,7 +16,7 @@ export interface TranslateBatchInput {
 }
 
 export type TranslateBatchOutput = Partial<Record<LocaleCode, string[]>> & {
-  _provider: 'deepl' | 'google' | 'tolgee' | 'none';
+  _provider: ProviderName;
 };
 
 export async function translateBatch(input: TranslateBatchInput): Promise<TranslateBatchOutput> {

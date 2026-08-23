@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { storageStatus } from '@/lib/server/storage';
 import { isAuthConfigured } from '@/lib/server/auth';
+import { hasAnyProvider, providerStatus } from '@/lib/translate/providers';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +11,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET() {
   const storage = storageStatus();
+  const translation = providerStatus();
 
   return NextResponse.json({
     ok: true,
@@ -24,9 +26,12 @@ export async function GET() {
     storage,
     features: {
       adminAuth: isAuthConfigured(),
-      deepl: Boolean(process.env.DEEPL_API_KEY),
-      googleTranslate: Boolean(process.env.GOOGLE_TRANSLATE_API_KEY),
-      tolgee: Boolean(process.env.TOLGEE_API_KEY),
+      deepl: translation.deepl,
+      googleTranslate: translation.google,
+      /* 키 없이 쓰는 무료 경로 — 하나라도 켜져 있으면 자동번역이 살아 있다 */
+      libreTranslate: translation.libretranslate,
+      ollama: translation.ollama,
+      tolgee: translation.tolgee,
       posthog: Boolean(process.env.NEXT_PUBLIC_POSTHOG_KEY),
       ga4: Boolean(process.env.NEXT_PUBLIC_GA4_ID),
       umami: Boolean(process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID && process.env.NEXT_PUBLIC_UMAMI_URL),
@@ -41,7 +46,9 @@ export async function GET() {
     todo: [
       !storage.pages.readOnly ? null : 'Postgres 를 연결하고 POSTGRES_URL 을 설정하세요 (저장 불가 상태).',
       isAuthConfigured() ? null : 'ADMIN_PASSWORD 를 설정하세요 (관리자 화면 보호).',
-      process.env.DEEPL_API_KEY || process.env.GOOGLE_TRANSLATE_API_KEY ? null : '번역 API 키가 없어 자동번역이 비활성화됩니다.',
+      hasAnyProvider()
+        ? null
+        : '자동번역이 꺼져 있습니다. 무료로 쓰려면 LibreTranslate 를 띄우고 LIBRETRANSLATE_URL 을 설정하세요.',
     ].filter(Boolean),
   });
 }
