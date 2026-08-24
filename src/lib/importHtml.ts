@@ -1,4 +1,5 @@
 import { DEFAULT_LOCALE } from '@/lib/i18n';
+import { sanitizeEmbedHtml, sanitizeHtml } from '@/lib/sanitize';
 import type { LocaleCode, PuckBlock, PuckPageData } from '@/types/schema';
 
 /* =============================================================================
@@ -14,6 +15,12 @@ import type { LocaleCode, PuckBlock, PuckPageData } from '@/types/schema';
  *
  * 배치는 흐름(Container flex column)으로 들여온다. 자유 배치는 좌표가 필요한데
  * 남의 HTML 에는 그런 정보가 없어, 좌표를 지어내면 화면이 무너진다.
+ *
+ * 정화는 여기서도 한 번 한다. 신뢰 경계는 여전히 서버(저장 시점)지만,
+ * 가져온 HTML 은 저장하기 전에 이미 편집 캔버스에서 그려진다 —
+ * <img onerror=…> 하나면 관리자 자신의 세션에서 실행된다. 게다가 저장 때
+ * 잘려 나갈 것을 미리 보여 주면 "가져올 땐 있었는데 저장하니 사라졌다"가
+ * 생긴다. 들여오는 순간 서버와 같은 규칙을 적용해 둘을 일치시킨다.
  * ========================================================================== */
 
 export interface ImportOptions {
@@ -113,7 +120,7 @@ export function htmlToPage(html: string, options: ImportOptions = {}): ImportRes
       blocks++;
       return {
         type: 'Text',
-        props: { id: nextId(), tag: tag.toLowerCase(), html: localized(el.innerHTML.trim(), locale), name: value.slice(0, 40) },
+        props: { id: nextId(), tag: tag.toLowerCase(), html: localized(sanitizeHtml(el.innerHTML.trim()), locale), name: value.slice(0, 40) },
       };
     }
 
@@ -123,7 +130,7 @@ export function htmlToPage(html: string, options: ImportOptions = {}): ImportRes
       blocks++;
       return {
         type: 'Text',
-        props: { id: nextId(), tag: 'p', html: localized(el.innerHTML.trim(), locale) },
+        props: { id: nextId(), tag: 'p', html: localized(sanitizeHtml(el.innerHTML.trim()), locale) },
       };
     }
 
@@ -160,7 +167,7 @@ export function htmlToPage(html: string, options: ImportOptions = {}): ImportRes
           },
         };
       }
-      return { type: 'Text', props: { id: nextId(), tag: 'p', html: localized(el.outerHTML.trim(), locale) } };
+      return { type: 'Text', props: { id: nextId(), tag: 'p', html: localized(sanitizeHtml(el.outerHTML.trim()), locale) } };
     }
 
     if (tag === 'HR') {
@@ -191,9 +198,23 @@ export function htmlToPage(html: string, options: ImportOptions = {}): ImportRes
        자손에도 미디어가 없어서, 자손만 확인하면 통째로 사라졌다. */
     const MEDIA = 'img, iframe, video, audio, svg, canvas, embed, object';
     if (!text(el).length && !el.matches(MEDIA) && !el.querySelector(MEDIA)) return null;
-    embedded++;
+
+    /* 서버가 저장할 때 쓰는 것과 같은 규칙 — 허용 밖 iframe 출처와
+       onerror 같은 실행 경로가 여기서 이미 떨어져 나간다. */
+    const safe = sanitizeEmbedHtml(raw);
+    if (safe.trim()) {
+      embedded++;
+      blocks++;
+      return { type: 'Embed', props: { id: nextId(), html: safe } };
+    }
+
+    /* 정화하고 나니 마크업이 통째로 사라진 경우(사용자 정의 태그 등).
+       글이 남아 있으면 버리지 않고 Text 로 건진다 — 태그는 포기하되 내용은
+       지킨다. 그냥 null 을 돌려주면 붙여넣은 문장이 소리 없이 사라진다. */
+    const inner = text(el);
+    if (!inner) return null;
     blocks++;
-    return { type: 'Embed', props: { id: nextId(), html: raw } };
+    return { type: 'Text', props: { id: nextId(), tag: 'p', html: localized(sanitizeHtml(inner), locale) } };
   };
 
   /** 자식들을 훑어 블록 목록을 만든다 (껍데기는 뚫고 들어간다) */

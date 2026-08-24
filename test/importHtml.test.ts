@@ -74,17 +74,20 @@ describe('알아보는 것은 진짜 블록이 된다', () => {
 });
 
 describe('모르는 것은 원본으로 남긴다', () => {
-  it('알 수 없는 마크업은 Embed 로 보존한다', () => {
-    const { data, summary } = run('<my-widget data-x="1">위젯 내용</my-widget>');
-    const embed = allBlocks(data).find((b) => b.type === 'Embed')!;
-    expect(String(embed.props.html)).toContain('my-widget');
+  it('블록으로 못 바꾸지만 안전한 것은 Embed 로 원본을 보존한다', () => {
+    // 구글 지도 iframe — Video 도 아니고 껍데기도 아니지만 허용된 출처다
+    const { data, summary } = run('<iframe src="https://www.google.com/maps/embed?pb=1"></iframe>');
+    const embed = allBlocks(data).find((b) => b.type === 'Embed');
+    expect(String(embed?.props.html ?? '')).toContain('google.com/maps');
     expect(summary.embedded).toBe(1);
   });
 
-  it('유튜브가 아닌 iframe 도 원본으로 남는다', () => {
-    const { data } = run('<iframe src="https://maps.example.com/embed"></iframe>');
-    const embed = allBlocks(data).find((b) => b.type === 'Embed');
-    expect(String(embed?.props.html)).toContain('maps.example.com');
+  /* 저장 때 서버가 지울 마크업(사용자 정의 태그 등)은 여기서도 지운다.
+     다만 글까지 버리면 붙여넣은 문장이 소리 없이 사라진다 — Text 로 건진다. */
+  it('정화로 태그가 사라져도 글은 Text 로 건진다', () => {
+    const { data } = run('<my-widget data-x="1">위젯 내용</my-widget>');
+    const text = allBlocks(data).find((b) => b.type === 'Text');
+    expect(text?.props.html).toEqual({ ko: '위젯 내용' });
   });
 
   it('글도 이미지도 없는 빈 껍데기는 버린다', () => {
@@ -174,5 +177,37 @@ describe('appendImported — 지금 문서 뒤에 붙이기', () => {
     const before = JSON.stringify(current);
     appendImported(current, run('<h1>새 제목</h1>').data);
     expect(JSON.stringify(current)).toBe(before);
+  });
+});
+
+describe('가져오는 순간 정화한다 (저장 전에 이미 캔버스에서 그려지므로)', () => {
+  it('onerror 같은 실행 경로를 들여오지 않는다', () => {
+    const { data } = run('<div><img src="x" onerror="alert(1)"><span>글</span></div>');
+    expect(JSON.stringify(data)).not.toContain('onerror');
+    expect(JSON.stringify(data)).not.toContain('alert(1)');
+  });
+
+  it('리치텍스트 안의 이벤트 속성도 떨어져 나간다', () => {
+    const { data } = run('<p>안녕 <b onmouseover="steal()">굵게</b></p>');
+    const html = JSON.stringify(data);
+    expect(html).not.toContain('onmouseover');
+    expect(html).toContain('굵게');
+  });
+
+  it('javascript: 링크는 남지 않는다', () => {
+    const { data } = run('<p><a href="javascript:alert(1)">누르지 마세요</a></p>');
+    expect(JSON.stringify(data)).not.toContain('javascript:');
+  });
+
+  /* 저장 때 잘려 나갈 것을 미리 보여 주지 않으면
+     "가져올 땐 있었는데 저장하니 사라졌다"가 된다 */
+  it('허용 밖 출처의 iframe 은 들여오지 않는다', () => {
+    const { data } = run('<iframe src="https://evil.example/x"></iframe>');
+    expect(JSON.stringify(data)).not.toContain('evil.example');
+  });
+
+  it('허용된 출처(유튜브·구글지도)는 남는다', () => {
+    const { data } = run('<iframe src="https://www.google.com/maps/embed?pb=1"></iframe>');
+    expect(JSON.stringify(data)).toContain('google.com/maps');
   });
 });
