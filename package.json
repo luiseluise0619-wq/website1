@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "a11y": "node scripts/a11y.mjs"
+    "a11y": "node scripts/a11y.mjs",
+    "canvas-check": "node scripts/canvas-stability.mjs"
   },
   "dependencies": {
     "@puckeditor/core": "^0.23.0",

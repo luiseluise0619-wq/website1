@@ -12,6 +12,9 @@ import type {
 } from '@/types/schema';
 import type { PageAnalyticsSummary } from '@/types/analytics';
 
+/** 우측 패널 탭 — RightPanel 이 아니라 여기 두어야 순환 import 가 생기지 않는다 */
+export type RightTab = 'style' | 'seo' | 'analytics';
+
 /* =============================================================================
  * Editor Shell Store (Zustand)
  * -----------------------------------------------------------------------------
@@ -59,6 +62,15 @@ export interface EditorState {
    * 조작 레이어(FreeTransformLayer)와 인스펙터(RightPanel)가 이 값을 공유한다.
    */
   pickedElementId: string | null;
+
+  /**
+   * 우측 패널의 활성 탭.
+   * 지역 state 로 두면 이 값이 바뀔 때마다 EditorShell 이 Puck 에 넘기는
+   * overrides 객체가 새로 만들어진다. Puck 은 오버라이드를 '컴포넌트 동일성'
+   * 으로 비교하므로(useMemo([overrides])) 그 순간 캔버스 전체가 리마운트되고
+   * 스크롤이 맨 위로 튄다. 스토어에 두면 오버라이드가 직접 읽어 갈 수 있다.
+   */
+  rightTab: RightTab;
 }
 
 export interface EditorActions {
@@ -92,6 +104,7 @@ export interface EditorActions {
   setAnalyticsLoading: (v: boolean) => void;
   setAnalyticsError: (message: string | null) => void;
 
+  setRightTab: (tab: RightTab) => void;
   setSaving: (v: boolean) => void;
   markSaved: (saved?: Array<{ id: string; revision: number }>) => void;
   setPickedElement: (id: string | null) => void;
@@ -140,6 +153,7 @@ export const useEditorStore = create<EditorStore>((set, get) => {
     saving: false,
     lastSavedAt: null,
     pickedElementId: null,
+    rightTab: 'style',
 
     loadPages: (pages) =>
       set({
@@ -246,6 +260,8 @@ export const useEditorStore = create<EditorStore>((set, get) => {
 
     commitContent: (pageId, content) =>
       patchPage(pageId, (p) => (p.content === content ? p : { ...p, content, revision: p.revision + 1 })),
+
+    setRightTab: (rightTab) => set({ rightTab }),
 
     setEditingLocale: (editingLocale) => set({ editingLocale }),
     toggleTranslationBadges: () => set((s) => ({ showTranslationBadges: !s.showTranslationBadges })),

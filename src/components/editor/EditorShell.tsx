@@ -9,7 +9,7 @@ import { useEditorStore } from '@/store/editorStore';
 import { fetchJson } from '@/lib/fetchJson';
 import { PageTree } from './PageTree';
 import { EditorToolbar } from './EditorToolbar';
-import { RightPanel, type RightTab } from './RightPanel';
+import { RightPanel } from './RightPanel';
 import { FreeTransformLayer } from './FreeTransformLayer';
 import { HeatmapOverlay } from '@/components/analytics/HeatmapOverlay';
 import type { Data } from '@puckeditor/core';
@@ -28,6 +28,66 @@ export interface StorageStatus {
   serverless: boolean;
   hint?: string;
 }
+
+/* -----------------------------------------------------------------------------
+ * Puck 오버라이드는 반드시 '항상 같은 컴포넌트'여야 한다
+ * -----------------------------------------------------------------------------
+ * Puck 내부는 오버라이드를 컴포넌트 동일성으로 기억한다
+ *   const CustomPreview = useMemo(() => overrides.preview, [overrides])
+ * 그리고 캔버스를 <CustomPreview><Preview/></CustomPreview> 로 그린다.
+ *
+ * overrides 를 JSX 안에서 객체 리터럴로 만들면 EditorShell 이 다시 그려질 때마다
+ * preview/fields 가 '새로운 컴포넌트 타입'이 된다. React 는 타입이 바뀐 자리를
+ * 갱신이 아니라 언마운트→마운트로 처리하므로, 캔버스 문서의 내용이 통째로
+ * 지워졌다 다시 그려진다. 화면에는 새로고침처럼 보이고, 스크롤은 맨 위로
+ * 돌아간다 — 아래쪽 섹션을 편집하는 동안 계속.
+ *
+ * EditorShell 은 타이핑 한 번마다(onChange → commitContent) 다시 그려지므로
+ * 그 빈도는 사실상 '편집할 때마다'였다. 그래서 오버라이드를 모듈 스코프에 두어
+ * 동일성을 고정하고, 바뀌는 값은 스토어/컨텍스트에서 직접 읽는다.
+ * ========================================================================== */
+
+/** 자유 배치 레이어가 쓰는 캔버스 컨테이너 — props 대신 컨텍스트로 넘긴다 */
+const CanvasRefCtx = React.createContext<React.RefObject<HTMLDivElement> | null>(null);
+
+const PreviewOverride = ({ children }: { children: React.ReactNode }) => {
+  const containerRef = React.useContext(CanvasRefCtx);
+  return (
+    <>
+      {children}
+      {containerRef ? <FreeTransformLayer containerRef={containerRef} /> : null}
+    </>
+  );
+};
+
+const FieldsOverride = ({
+  children,
+  isLoading,
+  itemSelector,
+}: {
+  children: React.ReactNode;
+  isLoading?: boolean;
+  itemSelector?: unknown;
+}) => {
+  /* 스토어에서 직접 읽는다 — props 로 받으면 다시 EditorShell 의 렌더에 묶인다 */
+  const analytics = useEditorStore((s) => s.analytics);
+  const tab = useEditorStore((s) => s.rightTab);
+  const setRightTab = useEditorStore((s) => s.setRightTab);
+  return (
+    <RightPanel
+      isLoading={isLoading}
+      hasSelection={Boolean(itemSelector)}
+      analytics={analytics}
+      tab={tab}
+      onTabChange={setRightTab}
+    >
+      {children}
+    </RightPanel>
+  );
+};
+
+/** 위 두 컴포넌트를 담은 객체도 한 번만 만든다 (Puck 이 객체 동일성도 본다) */
+const PUCK_OVERRIDES = { preview: PreviewOverride, fields: FieldsOverride };
 
 export function EditorShell({
   initialPages,
@@ -56,6 +116,7 @@ export function EditorShell({
   const setSaving = useEditorStore((s) => s.setSaving);
   const markSaved = useEditorStore((s) => s.markSaved);
   const updatePageMeta = useEditorStore((s) => s.updatePageMeta);
+  const rightTab = useEditorStore((s) => s.rightTab);
 
   const [saveError, setSaveError] = React.useState<string | null>(null);
   /* 좌측 페이지 트리는 접을 수 있다.
@@ -70,7 +131,6 @@ export function EditorShell({
   const liveData = React.useRef<PuckPageData | null>(null);
   /** 번역 등으로 데이터를 통째로 갈아끼울 때 Puck 을 리마운트하기 위한 키 */
   const [dataVersion, setDataVersion] = React.useState(0);
-  const [rightTab, setRightTab] = React.useState<RightTab>('style');
 
   React.useEffect(() => {
     loadPages(initialPages);
@@ -249,42 +309,25 @@ export function EditorShell({
             className={`ksoho-editor${wide ? ' ksoho-wide' : ''}`}
             style={{ flex: 1, position: 'relative', minHeight: 0 }}
           >
-            <Puck
-              key={`${activePage.id}:${dataVersion}`}
-              config={puckConfig}
-              data={puckData}
-              onChange={(data) => {
-                liveData.current = data as unknown as PuckPageData;
-                commitContent(activePage.id, data as unknown as PuckPageData);
-              }}
-              onPublish={() => handleSave(true)}
-              /* Puck 의 기본 헤더는 우리 툴바로 대체한다 */
-              headerTitle={activePage.title}
-              headerPath={activePage.path}
-              /* 우측 사이드바 전체를 우리 패널로 교체한다.
-                 children 이 곧 선택 요소의 스타일 인스펙터다. */
-              overrides={{
-                /* 캔버스 위에 자유 배치 조작 레이어를 얹는다.
-                   preview 오버라이드 안이어야 usePuck 컨텍스트에 접근할 수 있다. */
-                preview: ({ children }) => (
-                  <>
-                    {children}
-                    <FreeTransformLayer containerRef={canvasRef} />
-                  </>
-                ),
-                fields: ({ children, isLoading, itemSelector }) => (
-                  <RightPanel
-                    isLoading={isLoading}
-                    hasSelection={Boolean(itemSelector)}
-                    analytics={analytics}
-                    tab={rightTab}
-                    onTabChange={setRightTab}
-                  >
-                    {children}
-                  </RightPanel>
-                ),
-              }}
-            />
+            <CanvasRefCtx.Provider value={canvasRef}>
+              <Puck
+                key={`${activePage.id}:${dataVersion}`}
+                config={puckConfig}
+                data={puckData}
+                onChange={(data) => {
+                  liveData.current = data as unknown as PuckPageData;
+                  commitContent(activePage.id, data as unknown as PuckPageData);
+                }}
+                onPublish={() => handleSave(true)}
+                /* Puck 의 기본 헤더는 우리 툴바로 대체한다 */
+                headerTitle={activePage.title}
+                headerPath={activePage.path}
+                /* 우측 사이드바 전체를 우리 패널(fields)로 교체하고, 캔버스 위에
+                   자유 배치 조작 레이어(preview)를 얹는다. 반드시 고정된
+                   참조여야 한다 — 위 주석 참고. */
+                overrides={PUCK_OVERRIDES}
+              />
+            </CanvasRefCtx.Provider>
 
             {/* 히트맵은 Puck 캔버스 위에 겹치는 별도 레이어 */}
             {heatmapEnabled ? (

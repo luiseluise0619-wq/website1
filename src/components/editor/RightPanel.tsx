@@ -5,7 +5,7 @@ import { usePuck } from '@puckeditor/core';
 import { SeoPanel } from './SeoPanel';
 import { FieldRenderer } from './FieldRenderer';
 import { DropOffPanel } from '@/components/analytics/DropOffPanel';
-import { useEditorStore } from '@/store/editorStore';
+import { useEditorStore, type RightTab } from '@/store/editorStore';
 import { puckConfig } from '@/puck/config';
 import type { PageAnalyticsSummary } from '@/types/analytics';
 
@@ -17,7 +17,7 @@ import type { PageAnalyticsSummary } from '@/types/analytics';
  * (별도 aside 를 두면 "진짜 편집기"가 가운데로 밀려 보이지 않는다)
  * ========================================================================== */
 
-export type RightTab = 'style' | 'seo' | 'analytics';
+export type { RightTab };
 
 export interface RightPanelProps {
   /** Puck 이 렌더한 선택 요소의 필드들 = 스타일 인스펙터 */

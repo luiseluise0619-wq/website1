@@ -334,9 +334,10 @@ DeepL 은 **태국어·베트남어를 지원하지 않아**(`src/lib/i18n.ts` �
 ## 테스트
 
 ```bash
-npm test           # 215개 테스트
+npm test              # 237개 테스트
 npm run test:watch
-npm run a11y       # 실행 중인 사이트에 axe-core (WCAG 2.1 AA) — 위반 시 종료 코드 1
+npm run a11y          # 실행 중인 사이트에 axe-core (WCAG 2.1 AA) — 위반 시 종료 코드 1
+npm run canvas-check  # 에디터 캔버스가 편집 중에 다시 서지 않는지 (아래 참고)
 ```
 
 | 파일 | 검증 대상 |
@@ -354,9 +355,32 @@ npm run a11y       # 실행 중인 사이트에 axe-core (WCAG 2.1 AA) — 위�
 | `test/rateLimit.test.ts` | 창 제한과 만료 항목 청소(메모리 누수 방지) |
 | `test/editorStore.test.ts` | 페이지 복제(깊은 복사·경로 충돌·초안 시작), 삭제 후 활성 페이지 |
 | `test/revision.test.ts` | 오래된 저장 차단(탭 두 개가 서로를 덮어쓰지 않게) |
+| `test/providers.test.ts` | 번역 제공자 — 무료 경로(LibreTranslate·Ollama), 폴백 순서, 오류 안내 |
 
 브라우저가 필요한 것(에디터 드래그, 히트맵 좌표, 모바일 레이아웃, 접근성)은
 Playwright 로 실제 렌더를 띄워 확인했습니다. `npm run a11y` 가 그중 접근성 부분입니다.
+
+### `npm run canvas-check` — 캔버스가 헛되이 다시 서지 않는지
+
+```bash
+npm run build && npm start                     # 다른 터미널
+ADMIN_PASSWORD=... npm run canvas-check        # BASE_URL 로 주소 변경 가능
+```
+
+에디터에서 값을 고치거나 요소를 끌면 캔버스 iframe 문서가 통째로 헐렸다
+다시 서는 회귀가 있었습니다. 증상은 **"자꾸 새로고침되고, 아래쪽에서 작업하면
+화면이 맨 위로 튄다"** 였습니다.
+
+원인은 Puck 에 넘기는 `overrides` 를 JSX 안에서 객체 리터럴로 만든 것입니다.
+Puck 내부는 오버라이드를 **컴포넌트 동일성**으로 기억하는데
+(`useMemo(() => overrides.preview, [overrides])`), 리터럴은 렌더마다 새 함수라
+React 가 그 자리를 갱신이 아니라 언마운트→마운트로 처리합니다. EditorShell 은
+타이핑 한 번마다 다시 그려지므로 사실상 편집할 때마다 캔버스가 무너졌습니다.
+
+유닛 테스트로는 잡히지 않는 종류라(렌더 결과는 똑같고 '다시 섰다'는 사실만
+다릅니다) 실제 브라우저에서 캔버스 문서의 마운트와 스크롤 위치를 감시합니다.
+편집·드래그·탭 전환 세 가지를 각각 확인하며, 스크롤 여지가 없어 측정이
+불가능하면 조용히 통과시키지 않고 그 자리에서 실패합니다.
 
 ## Netlify 배포
 
@@ -572,6 +596,7 @@ npm test           # 단위 테스트
 npm run typecheck  # 타입 검사
 npm run lint
 npm run a11y       # 접근성 점검 (서버가 떠 있어야 함, BASE_URL 로 주소 변경)
+npm run canvas-check  # 에디터 캔버스 안정성 (서버 + ADMIN_PASSWORD 필요)
 ```
 
 ## 보안
