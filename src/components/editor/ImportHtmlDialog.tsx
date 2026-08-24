@@ -35,15 +35,27 @@ export function ImportHtmlDialog({
   const [error, setError] = React.useState<string | null>(null);
   const fileRef = React.useRef<HTMLInputElement>(null);
 
-  /* 미리 해석해 요약만 보여 준다 — 실제 반영은 [가져오기] 를 눌러야 일어난다 */
+  /* 미리 해석해 요약만 보여 준다 — 실제 반영은 [가져오기] 를 눌러야 일어난다.
+
+     타이핑마다 곧바로 해석하면 안 된다. 한 글자에 문서 전체를 파싱하고
+     DOMPurify 로 정화하므로, 실제 크기의 파일(수십 KB)에서는 입력이 멎는다.
+     잠깐 멈춘 뒤에 한 번만 해석한다. */
+  const [settled, setSettled] = React.useState('');
+  React.useEffect(() => {
+    const timer = setTimeout(() => setSettled(html), 350);
+    return () => clearTimeout(timer);
+  }, [html]);
+
+  const parsing = html.trim() !== settled.trim();
+
   const preview = React.useMemo(() => {
-    if (!html.trim()) return null;
+    if (!settled.trim()) return null;
     try {
-      return htmlToPage(html, { locale });
+      return htmlToPage(settled, { locale });
     } catch (err) {
       return { error: err instanceof Error ? err.message : '해석 실패' } as const;
     }
-  }, [html, locale]);
+  }, [settled, locale]);
 
   const readFile = async (file: File | undefined) => {
     if (!file) return;
@@ -132,7 +144,9 @@ export function ImportHtmlDialog({
 
         {preview && 'error' in preview ? <div style={errorBox}>{preview.error}</div> : null}
 
-        {summary ? (
+        {parsing && html.trim() ? <div style={summaryBox}>해석 중…</div> : null}
+
+        {summary && !parsing ? (
           <div style={summaryBox}>
             <strong>미리 확인</strong> — 블록 {summary.blocks}개
             {summary.images ? ` · 이미지 ${summary.images}개` : ''}

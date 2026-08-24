@@ -234,10 +234,15 @@ export function DividerBlock(props: Block<DividerProps>) {
 export function SpacerBlock(props: Block<{ size: number }>) {
   /* 빈 칸도 캔버스에서는 잡아서 옮기고 늘릴 수 있어야 한다.
      BlockShell 을 거치지 않던 시절에는 data-free/​data-puck-id 가 없어
-     조작 레이어가 이 블록만 찾지 못했다. */
+     조작 레이어가 이 블록만 찾지 못했다.
+
+     trackingDisabled 는 BlockShell 이 분석 뿌리(바깥 상자)에 붙인다.
+     안쪽 div 에 data-no-track 을 두면 뿌리에는 없는 셈이라, 빈 칸이
+     클릭·데드클릭·노출로 집계돼 '눌렀는데 아무 일도 없는 곳' 지표를
+     통째로 오염시킨다. */
   return (
-    <BlockShell {...props} elementType="Spacer" free={props.free}>
-      <div style={{ height: props.size ?? 48 }} data-no-track="true" />
+    <BlockShell {...props} elementType="Spacer" free={props.free} trackingDisabled>
+      <div style={{ height: props.size ?? 48 }} />
     </BlockShell>
   );
 }
@@ -355,7 +360,11 @@ export function FreeCanvasBlock(props: Block<{ height: number; snap?: number }>)
   const layerRef = React.useRef<HTMLDivElement>(null);
   const [contentHeight, setContentHeight] = React.useState(0);
 
-  React.useLayoutEffect(() => {
+  /* 서버에는 레이아웃이 없다 — useLayoutEffect 를 그대로 쓰면 공개 사이트
+     렌더마다 React 경고가 찍힌다. 브라우저에서만 레이아웃 단계로 잰다. */
+  const useIsomorphicLayoutEffect = typeof window === 'undefined' ? React.useEffect : React.useLayoutEffect;
+
+  useIsomorphicLayoutEffect(() => {
     const layer = layerRef.current;
     if (!layer) return;
 
@@ -389,7 +398,11 @@ export function FreeCanvasBlock(props: Block<{ height: number; snap?: number }>)
       resize.disconnect();
       mutate.disconnect();
     };
-  });
+    /* 의존성 배열이 없으면 렌더마다(= 타이핑 한 글자마다) 옵저버 두 개를
+       다시 만들고 자식 전체를 다시 훑는다. 관찰은 MutationObserver 가
+       subtree 로 이미 담당하므로 한 번만 걸면 된다. */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const height = Math.max(baseHeight, contentHeight);
 

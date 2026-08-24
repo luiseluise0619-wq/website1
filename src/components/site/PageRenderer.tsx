@@ -26,6 +26,12 @@ export interface PageRendererProps {
   /** 네비게이션 표시 여부 — 에디터 프리뷰에서는 끈다 */
   chrome?: boolean;
   analytics?: boolean;
+  /**
+   * 에디터 [미리보기] 안에서 그려지는 중인가.
+   * 내부 링크에 ?site=1 을 이어 붙여, 미리보기 안에서 로고를 눌렀다가
+   * 홈 → 에디터로 튕겨 미리보기 안에 에디터가 열리는 일을 막는다.
+   */
+  previewMode?: boolean;
 }
 
 /** 본문 바로가기 문구 — 방문자 언어로 보여야 의미가 있다 */
@@ -38,7 +44,7 @@ const SKIP_LABEL = {
   vi: 'Chuyển đến nội dung',
 };
 
-export function PageRenderer({ page, initialLocale, chrome = true, analytics = true }: PageRendererProps) {
+export function PageRenderer({ page, initialLocale, chrome = true, analytics = true, previewMode = false }: PageRendererProps) {
   const [locale, setLocale] = React.useState<LocaleCode>(initialLocale ?? DEFAULT_LOCALE);
   const rootRef = React.useRef<HTMLDivElement>(null);
 
@@ -102,7 +108,28 @@ export function PageRenderer({ page, initialLocale, chrome = true, analytics = t
     <RenderCtx.Provider value={ctx}>
       {/* 추적 루트가 <main> 이면 네비게이션 클릭이 기록되지 않는다.
           어느 메뉴로 이탈했는지가 곧 IA 개선의 근거이므로 함께 감싼다. */}
-      <div ref={rootRef} data-ks-site="true" data-page-id={page.id} data-locale={locale}>
+      <div
+        ref={rootRef}
+        data-ks-site="true"
+        data-page-id={page.id}
+        data-locale={locale}
+        /* 미리보기 안에서 내부 링크를 누르면 ?site=1 을 붙여 따라간다.
+           링크마다 주소를 고쳐 쓰는 대신 한 곳에서 가로챈다 — 블록이 만드는
+           링크(Button 의 navigate 등)까지 빠짐없이 걸린다. */
+        onClickCapture={
+          previewMode
+            ? (e) => {
+                const link = (e.target as HTMLElement).closest?.('a');
+                const href = link?.getAttribute('href');
+                if (!href || !href.startsWith('/') || href.startsWith('//')) return;
+                if (href.includes('site=1')) return;
+                e.preventDefault();
+                const [path, query] = href.split('?');
+                window.location.href = `${path}?${query ? `${query}&` : ''}site=1`;
+              }
+            : undefined
+        }
+      >
         {chrome ? (
           <>
             {/* 키보드 사용자가 메뉴 32개를 지나치지 않고 본문으로 건너뛴다 */}

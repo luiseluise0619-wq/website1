@@ -67,7 +67,14 @@ interface FrameGeometry {
 }
 
 function readGeometry(container: HTMLElement | null): FrameGeometry | null {
-  const frame = document.querySelector<HTMLIFrameElement>('iframe');
+  /* 반드시 Puck 캔버스 iframe 이어야 한다.
+     그냥 'iframe' 으로 찾으면 [미리보기] 가 열려 있는 동안 그쪽 iframe 이
+     먼저 걸린다(툴바가 캔버스보다 DOM 앞에 있다). 그러면 조작 레이어가
+     엉뚱한 문서를 재서 좌표가 어긋나고, 휴대폰 폭 판정에 걸려 편집이
+     잠기며, 키 리스너까지 미리보기 문서에 붙는다. */
+  const frame =
+    container?.querySelector<HTMLIFrameElement>('iframe#preview-frame') ??
+    document.querySelector<HTMLIFrameElement>('iframe#preview-frame');
   const doc = frame?.contentDocument;
   if (!frame || !doc) return null;
   const frameRect = frame.getBoundingClientRect();
@@ -171,7 +178,7 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
     const attach = () => {
       if (stopped) return;
       measure();
-      const doc = document.querySelector<HTMLIFrameElement>('iframe')?.contentDocument;
+      const doc = document.querySelector<HTMLIFrameElement>('iframe#preview-frame')?.contentDocument;
       if (!doc?.body || doc === observedDoc) return;
 
       mo?.disconnect();
@@ -495,7 +502,7 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
     let attempts = 0;
     const reveal = () => {
       const el = document
-        .querySelector<HTMLIFrameElement>('iframe')
+        .querySelector<HTMLIFrameElement>('iframe#preview-frame')
         ?.contentDocument?.querySelector(`[data-puck-id="${sectionId}"]`);
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       else if (attempts++ < 20) setTimeout(reveal, 100);
@@ -507,7 +514,7 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
      그대로 두면 캔버스 위에서 마우스를 굴려도 페이지가 스크롤되지 않는다.
      받은 만큼 캔버스(iframe body)를 직접 굴려 준다. */
   const forwardWheel = (e: React.WheelEvent) => {
-    const frame = document.querySelector<HTMLIFrameElement>('iframe#preview-frame, iframe');
+    const frame = document.querySelector<HTMLIFrameElement>('iframe#preview-frame');
     if (!frame) return;
 
     /* Puck 은 iframe 을 내용 높이만큼 늘리고, 그 바깥 컨테이너에 스크롤을 준다.

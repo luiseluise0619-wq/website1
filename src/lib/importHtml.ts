@@ -69,10 +69,17 @@ function looksLikeButton(el: Element): boolean {
   return role === 'button';
 }
 
-/** 유튜브/비메오 iframe 은 Video 블록으로 (그래야 인스펙터에서 주소를 바꿀 수 있다) */
-function videoSrc(el: Element): string | null {
+/**
+ * 유튜브/비메오 iframe → Video 블록의 provider + source.
+ *
+ * Video 블록은 provider 와 source 를 둘 다 요구한다. 주소만 넣으면
+ * toEmbedUrl 이 undefined 를 trim 하다 터져 캔버스가 통째로 죽는다.
+ */
+function videoProps(el: Element): { provider: 'youtube' | 'vimeo'; source: string } | null {
   const src = el.getAttribute('src') ?? '';
-  return /youtube\.com|youtu\.be|vimeo\.com/i.test(src) ? src : null;
+  if (/vimeo\.com/i.test(src)) return { provider: 'vimeo', source: src };
+  if (/youtube\.com|youtu\.be/i.test(src)) return { provider: 'youtube', source: src };
+  return null;
 }
 
 function text(el: Element | null | undefined): string {
@@ -176,10 +183,10 @@ export function htmlToPage(html: string, options: ImportOptions = {}): ImportRes
     }
 
     if (tag === 'IFRAME') {
-      const src = videoSrc(el);
-      if (src) {
+      const video = videoProps(el);
+      if (video) {
         blocks++;
-        return { type: 'Video', props: { id: nextId(), src } };
+        return { type: 'Video', props: { id: nextId(), ...video, controls: true } };
       }
       return null; // 그 밖의 iframe 은 Embed 로
     }
@@ -197,15 +204,26 @@ export function htmlToPage(html: string, options: ImportOptions = {}): ImportRes
        자기 자신이 미디어인 경우도 봐야 한다: 지도 iframe 은 글자가 없고
        자손에도 미디어가 없어서, 자손만 확인하면 통째로 사라졌다. */
     const MEDIA = 'img, iframe, video, audio, svg, canvas, embed, object';
-    if (!text(el).length && !el.matches(MEDIA) && !el.querySelector(MEDIA)) return null;
+    const hasMedia = el.matches(MEDIA) || el.querySelector(MEDIA);
+    if (!text(el).length && !hasMedia) return null;
 
     /* 서버가 저장할 때 쓰는 것과 같은 규칙 — 허용 밖 iframe 출처와
        onerror 같은 실행 경로가 여기서 이미 떨어져 나간다. */
     const safe = sanitizeEmbedHtml(raw);
-    if (safe.trim()) {
+    /* 껍데기만 남았는지 본다.
+       정화 목록에 svg·video·audio 가 없어서 <div><svg…></div> 는 '<div></div>'
+       가 되는데, 그것을 Embed 로 세면 요약은 "원본 그대로 1개" 라고 말하지만
+       실제 내용은 사라진 상태다. 남은 것이 글도 미디어도 아니면 보존이 아니다. */
+    const kept = safe.trim();
+    const keptSomething = kept && (/<(img|iframe|video|audio|svg|canvas|embed|object)\b/i.test(kept) || text(el).length > 0);
+    if (kept && keptSomething) {
       embedded++;
       blocks++;
       return { type: 'Embed', props: { id: nextId(), html: safe } };
+    }
+    if (hasMedia && !text(el).length) {
+      notes.push('그림·영상 일부는 안전 목록에 없어 가져오지 못했습니다 (svg 등).');
+      return null;
     }
 
     /* 정화하고 나니 마크업이 통째로 사라진 경우(사용자 정의 태그 등).
@@ -221,8 +239,19 @@ export function htmlToPage(html: string, options: ImportOptions = {}): ImportRes
   const collect = (parent: Element): PuckBlock[] => {
     const out: PuckBlock[] = [];
 
-    for (const node of Array.from(parent.children)) {
-      const tag = node.tagName.toUpperCase();
+    /* children 만 돌면 요소 옆에 놓인 맨 텍스트를 잃는다.
+       <div>바깥 문장 <p>안쪽</p></div> 에서 '바깥 문장'이 소리 없이 사라졌다. */
+    for (const node of Array.from(parent.childNodes)) {
+      if (node.nodeType === 3 /* TEXT_NODE */) {
+        const value = (node.textContent ?? '').replace(/\s+/g, ' ').trim();
+        if (!value) continue;
+        blocks++;
+        out.push({ type: 'Text', props: { id: nextId(), tag: 'p', html: localized(sanitizeHtml(value), locale) } });
+        continue;
+      }
+      if (node.nodeType !== 1 /* ELEMENT_NODE */) continue;
+      const el = node as Element;
+      const tag = el.tagName.toUpperCase();
 
       if (DROPPED_TAGS.has(tag)) {
         if (tag === 'SCRIPT') notes.push('<script> 는 가져오지 않았습니다 (보안).');
@@ -230,14 +259,14 @@ export function htmlToPage(html: string, options: ImportOptions = {}): ImportRes
         continue;
       }
 
-      const block = toBlock(node);
+      const block = toBlock(el);
       if (block) {
         out.push(block);
         continue;
       }
 
       if (WRAPPERS.has(tag)) {
-        const inner = collect(node);
+        const inner = collect(el);
         if (inner.length) {
           out.push(...inner);
           continue;
@@ -245,7 +274,7 @@ export function htmlToPage(html: string, options: ImportOptions = {}): ImportRes
         // 안에서 아무것도 못 건졌으면 통째로 원본 보존
       }
 
-      const embed = toEmbed(node);
+      const embed = toEmbed(el);
       if (embed) out.push(embed);
     }
 

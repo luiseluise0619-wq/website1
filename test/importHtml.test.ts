@@ -58,7 +58,7 @@ describe('알아보는 것은 진짜 블록이 된다', () => {
   it('유튜브 iframe 은 Video 로 (주소를 인스펙터에서 바꿀 수 있게)', () => {
     const { data } = run('<iframe src="https://www.youtube.com/embed/abc123"></iframe>');
     const video = allBlocks(data).find((b) => b.type === 'Video')!;
-    expect(video.props.src).toContain('youtube.com');
+    expect(video.props.source).toContain('youtube.com');
   });
 
   it('구분선은 Divider 로', () => {
@@ -209,5 +209,37 @@ describe('가져오는 순간 정화한다 (저장 전에 이미 캔버스에서
   it('허용된 출처(유튜브·구글지도)는 남는다', () => {
     const { data } = run('<iframe src="https://www.google.com/maps/embed?pb=1"></iframe>');
     expect(JSON.stringify(data)).toContain('google.com/maps');
+  });
+});
+
+describe('회귀 — 두 번째 코드 리뷰에서 잡힌 것들', () => {
+  /* Video 블록은 provider 와 source 를 둘 다 요구한다. 주소만 넣으면
+     toEmbedUrl 이 undefined 를 trim 하다 터져 캔버스가 통째로 죽는다. */
+  it('유튜브 영상은 Video 블록이 실제로 요구하는 모양으로 들어온다', () => {
+    const { data } = run('<iframe src="https://www.youtube.com/embed/abc123"></iframe>');
+    const video = allBlocks(data).find((b) => b.type === 'Video')!;
+    expect(video.props.provider).toBe('youtube');
+    expect(video.props.source).toBe('https://www.youtube.com/embed/abc123');
+  });
+
+  it('비메오도 provider 를 알아본다', () => {
+    const { data } = run('<iframe src="https://player.vimeo.com/video/999"></iframe>');
+    const video = allBlocks(data).find((b) => b.type === 'Video')!;
+    expect(video.props.provider).toBe('vimeo');
+  });
+
+  it('요소 옆에 놓인 맨 텍스트를 잃지 않는다', () => {
+    const { data } = run('<div>바깥 문장 <p>안쪽</p></div>');
+    const texts = allBlocks(data).filter((b) => b.type === 'Text').map((b) => JSON.stringify(b.props.html));
+    expect(texts.join(' ')).toContain('바깥 문장');
+    expect(texts.join(' ')).toContain('안쪽');
+  });
+
+  /* 요약이 "원본 그대로 1개" 라고 말하는데 실제로는 빈 <div> 만 남는 상태를 막는다 */
+  it('정화 뒤 껍데기만 남으면 보존했다고 세지 않는다', () => {
+    const { data, summary } = run('<div><svg viewBox="0 0 1 1"><circle r="1"/></svg></div>');
+    expect(summary.embedded).toBe(0);
+    expect(allBlocks(data).some((b) => b.type === 'Embed')).toBe(false);
+    expect(summary.notes.join(' ')).toMatch(/가져오지 못했습니다/);
   });
 });

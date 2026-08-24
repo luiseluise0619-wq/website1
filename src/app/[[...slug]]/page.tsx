@@ -97,14 +97,19 @@ export default async function DynamicPage({ params, searchParams }: Params) {
      방문자에게는 아무 영향이 없고(쿠키가 없으니 그대로 사이트),
      주인이 공개 화면을 보고 싶을 때는 ?site=1 로 빠져나갈 수 있다
      (에디터의 [사이트 보기] 가 그 주소를 쓴다). */
-  if (path === '/' && !firstParam(searchParams?.site) && !headers().get(EXPORT_HEADER) && isAdminRequest()) {
+  const siteMode = Boolean(firstParam(searchParams?.site));
+  if (path === '/' && !siteMode && !headers().get(EXPORT_HEADER) && isAdminRequest()) {
     redirect('/admin/editor');
   }
 
   const page = await getPageByPath(path);
 
-  // 초안/보관 페이지는 공개 사이트에 노출하지 않는다
-  if (!page || page.status !== 'published') notFound();
+  /* 초안/보관 페이지는 공개 사이트에 노출하지 않는다.
+     단, 로그인한 운영자에게는 보여 준다 — 에디터의 [미리보기] 가 이 주소를
+     띄우는데, 새로 만든 페이지는 대부분 초안이라 그대로 두면 미리보기가
+     늘 404 였다. 방문자에게는 그대로 404 다. */
+  if (!page) notFound();
+  if (page.status !== 'published' && !isAdminRequest()) notFound();
 
   const requested = langOf(searchParams);
   const locale = resolveLocale(page.enabledLocales, requested);
@@ -126,5 +131,10 @@ export default async function DynamicPage({ params, searchParams }: Params) {
     redirect(`${page.path}?lang=${locale}`);
   }
 
-  return <PageRenderer page={page} initialLocale={locale} />;
+  /* ?site=1 은 '지금 이 화면은 미리보기' 라는 뜻이기도 하다.
+     · 이 표시가 링크를 타고 이어져야 한다. 안 그러면 미리보기 안에서 로고를
+       누르는 순간 홈으로 갔다가 에디터로 튕겨, 미리보기 안에 에디터가 열린다.
+     · 방문 분석도 끈다. 주인이 자기 화면을 확인할 때마다 page_view 와 스크롤
+       이벤트가 쌓이면 자기 지표를 자기가 오염시킨다. */
+  return <PageRenderer page={page} initialLocale={locale} previewMode={siteMode} analytics={!siteMode} />;
 }
