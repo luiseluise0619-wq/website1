@@ -3,6 +3,7 @@ import { cookies, headers } from 'next/headers';
 import { PageRenderer } from '@/components/site/PageRenderer';
 import { getPageByPath, listPages } from '@/lib/server/pageStore';
 import { DEFAULT_LOCALE, LOCALES, LOCALE_COOKIE, LOCALE_ORDER, isLocale, parseAcceptLanguage, t } from '@/lib/i18n';
+import { EXPORT_HEADER } from '@/lib/server/export/staticExport';
 import type { Metadata } from 'next';
 import type { LocaleCode } from '@/types/schema';
 
@@ -95,6 +96,15 @@ export default async function DynamicPage({ params, searchParams }: Params) {
 
   const requested = langOf(searchParams);
   const locale = resolveLocale(page.enabledLocales, requested);
+
+  /* 정적 내보내기용 요청 — 로케일을 서버에서 못 박지 않는다.
+     산출물은 페이지당 HTML 한 장이고, 그 한 장이 정적 호스팅에서 6개 언어를
+     모두 담당해야 한다. initialLocale 을 박아 두면 브라우저가 언어를 다시
+     정하지 않아(PageRenderer 의 감지 로직이 건너뛴다) ?lang= 이 죽는다.
+     밖에서 이 헤더를 붙여도 손해가 없다 — 언어를 클라이언트가 정할 뿐이다. */
+  if (headers().get(EXPORT_HEADER)) {
+    return <PageRenderer page={page} />;
+  }
 
   /* 이 페이지가 끈 언어로 들어온 요청은 실제로 보여 줄 언어로 넘긴다.
      그대로 두면 <html lang> 은 요청한 언어(미들웨어가 URL 만 보고 정한 값)인데

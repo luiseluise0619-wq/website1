@@ -76,6 +76,7 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
   const applyTemplate = useEditorStore((s) => s.applyTemplate);
 
   const [message, setMessage] = React.useState<string | null>(null);
+  const [exporting, setExporting] = React.useState(false);
 
   /* 이 페이지가 노출하는 언어만 다룬다(SEO 탭에서 지정). 끈 언어까지 번역하면
      보이지도 않을 문장에 번역 API 비용을 쓰게 된다. */
@@ -115,6 +116,54 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
       setMessage(err instanceof Error ? err.message : '번역 실패');
     } finally {
       setTranslating(false, null);
+    }
+  };
+
+  /**
+   * 정적 HTML 내보내기 — 발행된 페이지를 zip 한 덩어리로 받는다.
+   * 서버가 자기 자신을 크롤링하므로 저장하지 않은 편집은 담기지 않는다.
+   * 그 사실을 먼저 알려 준다("눌렀는데 어제 내용이 나왔다"를 막는다).
+   */
+  const handleExport = async () => {
+    if (dirty && !window.confirm('저장하지 않은 편집이 있습니다.\n내보내기는 발행된 내용만 담습니다. 계속할까요?')) return;
+
+    setExporting(true);
+    setMessage(null);
+    try {
+      const res = await fetch('/api/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error ?? `내보내기에 실패했습니다 (${res.status})`);
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = res.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1] ?? 'site.zip';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // 즉시 revoke 하면 브라우저가 아직 읽는 중일 수 있다
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+
+      const pages = res.headers.get('X-Export-Pages');
+      const files = res.headers.get('X-Export-Files');
+      const warnings = decodeURIComponent(res.headers.get('X-Export-Warnings') ?? '')
+        .split('\n')
+        .filter(Boolean);
+      setMessage(
+        `${pages}장 · 파일 ${files}개를 내려받았습니다. 압축을 풀어 웹호스팅 문서 루트에 그대로 올리세요.` +
+          (warnings.length ? ` — ${warnings.join(' / ')}` : ''),
+      );
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : '내보내기 실패');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -283,6 +332,15 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
             </span>
           ) : null}
         </a>
+        <button
+          type="button"
+          onClick={handleExport}
+          disabled={exporting}
+          title="발행된 페이지를 정적 HTML(zip)로 내려받습니다 — 웹호스팅에 그대로 올릴 수 있습니다"
+          style={btn}
+        >
+          {exporting ? 'HTML 뽑는 중…' : 'HTML 내보내기'}
+        </button>
         <button
           type="button"
           onClick={() => onSave(false)}

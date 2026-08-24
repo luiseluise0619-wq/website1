@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "a11y": "node scripts/a11y.mjs",
-    "canvas-check": "node scripts/canvas-stability.mjs"
+    "canvas-check": "node scripts/canvas-stability.mjs",
+    "export-check": "node scripts/export-check.mjs"
   },
   "dependencies": {
     "@puckeditor/core": "^0.23.0",
@@ -20,6 +21,7 @@
     "@tolgee/web": "^7.1.3",
     "embla-carousel-react": "^8.6.0",
     "isomorphic-dompurify": "^3.22.0",
+    "jszip": "^3.10.1",
     "lucide-react": "^1.33.0",
     "nanoid": "6.0.1",
     "next": "^14.2.35",

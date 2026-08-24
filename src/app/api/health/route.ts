@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { storageStatus } from '@/lib/server/storage';
 import { isAuthConfigured } from '@/lib/server/auth';
 import { hasAnyProvider, providerStatus } from '@/lib/translate/providers';
+import { isStaticSiteConfigured } from '@/lib/server/cors';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,6 +33,8 @@ export async function GET() {
       libreTranslate: translation.libretranslate,
       ollama: translation.ollama,
       tolgee: translation.tolgee,
+      /* 정적 HTML 사본이 이 배포본으로 문의·분석을 되돌려 보낼 수 있는가 */
+      staticSiteCallback: isStaticSiteConfigured(),
       posthog: Boolean(process.env.NEXT_PUBLIC_POSTHOG_KEY),
       ga4: Boolean(process.env.NEXT_PUBLIC_GA4_ID),
       umami: Boolean(process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID && process.env.NEXT_PUBLIC_UMAMI_URL),

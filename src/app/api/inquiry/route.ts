@@ -4,6 +4,7 @@ import { assertAdmin } from '@/lib/server/auth';
 import { getPageByPath } from '@/lib/server/pageStore';
 import { formatZodError, inquiryRequestSchema, inquiryStatusSchema } from '@/lib/schemas';
 import { clientIp, createRateLimiter } from '@/lib/server/rateLimit';
+import { corsHeaders, corsPreflight } from '@/lib/server/cors';
 import type { LocaleCode } from '@/types/schema';
 import type { InquiryRecord } from '@/lib/server/storage/types';
 
@@ -12,15 +13,25 @@ export const dynamic = 'force-dynamic';
 /** 제출 남용 방지 — 10분에 8건 */
 const rateLimited = createRateLimiter({ windowMs: 10 * 60 * 1000, max: 8 });
 
+/* 정적 사본(다른 도메인)에서 오는 접수를 위한 프리플라이트.
+   STATIC_SITE_ORIGINS 에 적힌 출처만 통과한다. */
+export async function OPTIONS(request: Request) {
+  return corsPreflight(request);
+}
+
 /** POST /api/inquiry — BUSINESS 폼 접수 (공개 엔드포인트) */
 export async function POST(request: Request) {
+  /* 실패 응답에도 CORS 헤더가 있어야 한다. 없으면 브라우저가 응답 자체를
+     가려서, 정적 사본의 방문자는 429·400 대신 "알 수 없는 오류"만 본다. */
+  const cors = corsHeaders(request);
+
   if (rateLimited(clientIp(request))) {
-    return NextResponse.json({ error: '잠시 후 다시 시도해 주세요.' }, { status: 429 });
+    return NextResponse.json({ error: '잠시 후 다시 시도해 주세요.' }, { status: 429, headers: cors });
   }
 
   const parsed = inquiryRequestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ error: formatZodError(parsed.error) }, { status: 400 });
+    return NextResponse.json({ error: formatZodError(parsed.error) }, { status: 400, headers: cors });
   }
   const { formName, path, fields, utm } = parsed.data;
   const page = await getPageByPath(path).catch(() => null);
@@ -43,10 +54,10 @@ export async function POST(request: Request) {
     await inquiryStorage.insert(record);
   } catch (err) {
     const status = err instanceof StorageReadOnlyError ? 503 : 500;
-    return NextResponse.json({ error: err instanceof Error ? err.message : '접수 실패' }, { status });
+    return NextResponse.json({ error: err instanceof Error ? err.message : '접수 실패' }, { status, headers: cors });
   }
 
-  return NextResponse.json({ ok: true, id: record.id });
+  return NextResponse.json({ ok: true, id: record.id }, { headers: cors });
 }
 
 /** GET /api/inquiry — 접수된 문의 조회 (관리자 전용) */

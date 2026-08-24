@@ -5,6 +5,7 @@ import { FORM_SUBMIT_EVENT } from '@/types/analytics';
 import { BlockShell, useRenderCtx } from './shared';
 import { t } from '@/lib/i18n';
 import type { BaseBlockProps, LocalizedText } from '@/types/schema';
+import { apiUrl, isApiUnavailable } from '@/lib/apiBase';
 
 /* =============================================================================
  * Form 블록 — BUSINESS 섹션(Buyer Inquiry / Distribution / Partnership / Media)
@@ -50,10 +51,19 @@ export function FormBlock(props: Props) {
     // 에디터 캔버스에서는 실제 접수가 일어나면 안 된다
     if (isEditing) return;
 
+    /* 정적 내보내기 산출물인데 되돌려 보낼 주소가 없는 경우.
+       그냥 보내면 없는 /api 를 때려 404 가 나고, 방문자는 문의를 다 적은
+       뒤에야 실패를 안다 — 보내기 전에 알린다. */
+    if (isApiUnavailable()) {
+      setState('error');
+      setError('이 페이지는 정적 사본이라 문의를 접수할 수 없습니다. 원본 사이트에서 보내 주세요.');
+      return;
+    }
+
     setState('sending');
     setError(null);
     try {
-      const res = await fetch('/api/inquiry', {
+      const res = await fetch(apiUrl('/api/inquiry'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

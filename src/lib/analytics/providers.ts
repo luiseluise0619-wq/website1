@@ -1,5 +1,6 @@
 'use client';
 
+import { apiUrl, isApiUnavailable } from '@/lib/apiBase';
 import type {
   AnalyticsBatch,
   AnalyticsEvent,
@@ -111,17 +112,28 @@ function sendToMixpanel(event: AnalyticsEvent, config: AnalyticsProviderConfig):
  */
 export function sendBatch(batch: AnalyticsBatch, config: AnalyticsProviderConfig): void {
   if (!config.internal.enabled || !batch.events.length) return;
+  /* 정적 내보내기 산출물인데 되돌려 보낼 주소가 없으면 수집을 건너뛴다.
+     없는 /api 로 계속 쏘면 콘솔이 404 로 뒤덮인다. */
+  if (isApiUnavailable()) return;
   const body = JSON.stringify(batch);
+  const endpoint = apiUrl(config.internal.endpoint);
+
+  /* 본문은 JSON 이지만 Content-Type 은 text/plain 으로 보낸다.
+     정적 사본은 다른 도메인에서 이 API 를 부르는데, application/json 은
+     CORS 안전 목록에 없어 프리플라이트를 부른다. sendBeacon 은 프리플라이트를
+     할 수 없어서 그대로 실패한다 — 게다가 반환값이 true 라 실패한 줄도 모른다.
+     수집 라우트는 본문을 텍스트로 읽어 파싱하므로 서버 쪽은 달라질 게 없다. */
+  const TYPE = 'text/plain;charset=UTF-8';
 
   if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
-    const ok = navigator.sendBeacon(config.internal.endpoint, new Blob([body], { type: 'application/json' }));
+    const ok = navigator.sendBeacon(endpoint, new Blob([body], { type: TYPE }));
     if (ok) return;
   }
   // sendBeacon 이 없거나 큐가 가득 찬 경우의 폴백
-  void fetch(config.internal.endpoint, {
+  void fetch(endpoint, {
     method: 'POST',
     body,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': TYPE },
     keepalive: true,
   }).catch((err) => {
     if (config.debug) console.warn('[analytics] 내부 수집 전송 실패', err);
