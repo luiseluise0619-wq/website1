@@ -7,6 +7,7 @@ import { translatePage } from '@/lib/translate/pipeline';
 import { coverageReport } from '@/lib/translate/walk';
 import { PAGE_TEMPLATES } from '@/data/templates';
 import { SitePreview } from './SitePreview';
+import { ImportHtmlDialog } from './ImportHtmlDialog';
 import type { LocaleCode, PuckPageData } from '@/types/schema';
 
 /* =============================================================================
@@ -79,6 +80,7 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
   const [message, setMessage] = React.useState<string | null>(null);
   const [exporting, setExporting] = React.useState(false);
   const [previewing, setPreviewing] = React.useState(false);
+  const [importing, setImporting] = React.useState(false);
 
   /* 이 페이지가 노출하는 언어만 다룬다(SEO 탭에서 지정). 끈 언어까지 번역하면
      보이지도 않을 문장에 번역 API 비용을 쓰게 된다. */
@@ -336,6 +338,14 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
         </a>
         <button
           type="button"
+          onClick={() => setImporting(true)}
+          title="이미 있는 HTML 을 캔버스로 불러와 이어서 고칩니다"
+          style={btn}
+        >
+          HTML 가져오기
+        </button>
+        <button
+          type="button"
           onClick={() => setPreviewing(true)}
           title="방문자가 보는 실제 화면을 에디터 안에서 확인합니다 (저장된 내용 기준)"
           style={btn}
@@ -381,6 +391,15 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
         <div style={toast} onClick={() => setMessage(null)}>
           {message}
         </div>
+      ) : null}
+
+      {importing ? (
+        <ImportHtmlDialog
+          locale={editingLocale}
+          getCurrentData={getCurrentData}
+          onApply={onReplaceData}
+          onClose={() => setImporting(false)}
+        />
       ) : null}
 
       {previewing ? (
