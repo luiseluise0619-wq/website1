@@ -659,6 +659,7 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
         {HANDLES.map((h) => (
           <span
             key={h.key}
+            data-ks-handle={h.key}
             onPointerDown={start(h.key)}
             style={{
               position: 'absolute',

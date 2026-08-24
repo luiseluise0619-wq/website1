@@ -3,6 +3,7 @@
 import React from 'react';
 import useEmblaCarousel from 'embla-carousel-react';
 import { DropZone } from '@puckeditor/core';
+import { useIsFree } from './shared';
 import { blockCSS } from '@/lib/style';
 import type { BaseBlockProps } from '@/types/schema';
 
@@ -28,6 +29,13 @@ type Props = CarouselBlockProps & BaseBlockProps & { id?: string; free?: boolean
 
 export function CarouselBlock(props: Props) {
   const { slidesPerView = 3, gap = 24, loop = true, showArrows = true, showDots = true, autoplayMs = 0 } = props;
+
+  /* 이 블록만 BlockShell 을 거치지 않는다(embla 가 자체 래퍼를 요구한다).
+     그래서 자유 캔버스 안에 있다는 사실을 스스로 알아내야 한다 — 예전에는
+     props.free 만 봤는데 Puck 은 그런 prop 을 넣어 주지 않아 항상 false 였다.
+     그 결과 placement 가 적용되지 않아 캔버스에서 캐러셀만 크기를 못 바꿨다. */
+  const inFreeCanvas = useIsFree();
+  const isFree = props.free ?? inFreeCanvas;
 
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop, align: 'start', slidesToScroll: 1 });
   const [selected, setSelected] = React.useState(0);
@@ -57,13 +65,22 @@ export function CarouselBlock(props: Props) {
   }, [emblaApi, autoplayMs, paused]);
 
   const elementId = props.trackingId || props.id || 'carousel';
+  const carouselCss = blockCSS(props, { free: isFree });
 
   return (
     <div
-      style={{ ...blockCSS(props, { free: props.free }), position: 'relative' }}
+      /* 화살표 버튼이 이 상자 기준으로 자리를 잡으므로 위치 기준이 필요하다.
+         다만 relative 를 못 박으면 안 된다 — 자유 캔버스 안에서는 blockCSS 가
+         absolute + left/top 을 주는데, 그것을 덮어써서 좌표가 흐름 위치 기준으로
+         밀려 캐러셀만 엉뚱한 데 놓였다. 이미 값이 있으면 그대로 둔다. */
+      style={{ ...carouselCss, position: carouselCss.position ?? 'relative' }}
       data-element-id={elementId}
       data-element-type="Carousel"
       data-element-name={props.name}
+      /* 캔버스 밖 조작 레이어가 이 요소를 찾아 선택·크기 조절을 건다.
+         이 두 속성이 없으면 캐러셀만 선택되지 않는다(BlockShell 과 같은 계약). */
+      data-puck-id={props.id}
+      data-free={isFree ? 'true' : undefined}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >

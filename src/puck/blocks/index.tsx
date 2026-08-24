@@ -232,7 +232,14 @@ export function DividerBlock(props: Block<DividerProps>) {
 }
 
 export function SpacerBlock(props: Block<{ size: number }>) {
-  return <div style={{ height: props.size ?? 48 }} data-element-id={props.trackingId || props.id} data-no-track="true" />;
+  /* 빈 칸도 캔버스에서는 잡아서 옮기고 늘릴 수 있어야 한다.
+     BlockShell 을 거치지 않던 시절에는 data-free/​data-puck-id 가 없어
+     조작 레이어가 이 블록만 찾지 못했다. */
+  return (
+    <BlockShell {...props} elementType="Spacer" free={props.free}>
+      <div style={{ height: props.size ?? 48 }} data-no-track="true" />
+    </BlockShell>
+  );
 }
 
 /* ---- Embed ---------------------------------------------------------------- */
@@ -337,7 +344,54 @@ export function FreeCanvasBlock(props: Block<{ height: number; snap?: number }>)
   const css = blockCSS(props, { free: false });
   const { isEditing, designWidth } = useRenderCtx();
   const elementId = props.trackingId || props.id || 'canvas';
-  const height = props.height ?? 640;
+  const baseHeight = props.height ?? 640;
+
+  /* 내용에 맞춰 높이를 늘린다.
+     자식은 전부 position:absolute 라 부모 높이를 밀어내지 못한다. 그래서 예전에는
+     설정된 높이(기본 640) 밖으로 끌어낸 요소가 overflow:hidden 에 잘려 사라졌고,
+     화면에서는 다음 섹션이 그 위로 올라온 것처럼 보였다 — "섹션이 겹친다".
+     실제로 그려진 넓이(scrollHeight)를 재서, 설정값보다 크면 그만큼 늘린다.
+     설정값은 '최소 높이'가 되므로 내용을 줄이면 다시 원래 높이로 돌아온다. */
+  const layerRef = React.useRef<HTMLDivElement>(null);
+  const [contentHeight, setContentHeight] = React.useState(0);
+
+  React.useLayoutEffect(() => {
+    const layer = layerRef.current;
+    if (!layer) return;
+
+    /* 자식의 아래끝을 직접 잰다.
+       scrollHeight 를 쓰면 안 된다: 그것은 '자기 높이'와 '내용'의 큰 쪽이라,
+       한 번 늘어난 뒤에는 내용을 줄여도 계속 그 높이를 돌려줘 캔버스가
+       영영 줄지 않는다. offsetTop/offsetHeight 는 레이아웃 값이라 사이트에
+       걸린 축소 변형(transform:scale)에도 영향을 받지 않는다. */
+    const measure = () => {
+      let bottom = 0;
+      for (const el of Array.from(layer.querySelectorAll<HTMLElement>('[data-free="true"]'))) {
+        bottom = Math.max(bottom, el.offsetTop + el.offsetHeight);
+      }
+      const next = Math.ceil(bottom);
+      setContentHeight((prev) => (Math.abs(prev - next) > 1 ? next : prev));
+    };
+    measure();
+
+    /* 요소를 끌어 내리거나 글이 길어지면 그 즉시 따라와야 한다.
+       자식 하나하나가 아니라 레이어 전체의 크기 변화를 본다. */
+    const resize = new ResizeObserver(measure);
+    resize.observe(layer);
+    for (const el of Array.from(layer.querySelectorAll('[data-free="true"]'))) resize.observe(el);
+
+    /* 요소를 끌어 내리면 크기가 아니라 좌표(style.top)만 바뀐다 —
+       ResizeObserver 는 그것을 알려주지 않으므로 속성 변화도 함께 본다. */
+    const mutate = new MutationObserver(measure);
+    mutate.observe(layer, { attributes: true, childList: true, subtree: true, attributeFilter: ['style'] });
+
+    return () => {
+      resize.disconnect();
+      mutate.disconnect();
+    };
+  });
+
+  const height = Math.max(baseHeight, contentHeight);
 
   /* 자유 배치는 설계 폭(기본 1440px)을 전제로 좌표가 박혀 있다. 휴대폰에서는
      그 좌표가 화면 밖으로 나가 제목이 잘려 보이므로, 아트보드 전체를 화면
@@ -371,7 +425,12 @@ export function FreeCanvasBlock(props: Block<{ height: number; snap?: number }>)
       {/* 자식들은 각자 position:absolute + left/top 으로 자리를 잡는다.
           FreeCtx 가 "여기서는 placement 좌표를 쓰라"고 알린다. */}
       <FreeCtx.Provider value>
-        <DropZone zone="layers" style={inner} />
+        {/* 높이를 재려면 레이어 DOM 을 잡아야 한다 — DropZone 은 ref 를 받지
+            않으므로 한 겹 감싼다(레이아웃에 영향이 없도록 display:contents 는
+            쓰지 않는다: 그러면 잡을 상자가 사라져 scrollHeight 가 0 이 된다). */}
+        <div ref={layerRef} style={inner}>
+          <DropZone zone="layers" style={{ position: 'absolute', inset: 0 }} />
+        </div>
       </FreeCtx.Provider>
     </div>
   );
