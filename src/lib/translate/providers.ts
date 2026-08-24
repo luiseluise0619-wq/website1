@@ -53,8 +53,24 @@ const NO_PROVIDER_MESSAGE =
   'LIBRETRANSLATE_URL 을 지정하세요 (docker run -p 5000:5000 libretranslate/libretranslate). ' +
   '유료 API 를 쓰려면 DEEPL_API_KEY 또는 GOOGLE_TRANSLATE_API_KEY 를 넣고 다시 배포하세요.';
 
-/** 무료 경로 안내 — 미지원 언어 안내 문구에서도 재사용한다 */
-const FREE_HINT = 'LIBRETRANSLATE_URL(무료·셀프호스팅) 또는 GOOGLE_TRANSLATE_API_KEY 를 설정하면 이 언어도 번역됩니다.';
+/**
+ * 미지원 언어일 때 '다음에 무엇을 하면 되는지'.
+ * 이미 설정한 것을 또 설정하라고 하면 안 된다 — LibreTranslate 를 띄워 둔
+ * 사람에게 LIBRETRANSLATE_URL 을 넣으라고 하면 엉뚱한 곳을 보게 된다.
+ * 그쪽은 주소가 아니라 '그 언어 모델이 안 깔린 것'이 원인이다.
+ */
+function nextStepFor(provider: ProviderName): string {
+  if (provider === 'libretranslate') {
+    return 'LibreTranslate 인스턴스에 그 언어 모델이 없습니다. LT_LOAD_ONLY 에 해당 언어를 넣어 다시 띄우거나(예: LT_LOAD_ONLY=ko,en,th,vi,ja,zh), GOOGLE_TRANSLATE_API_KEY 를 설정하세요.';
+  }
+  const missing = [
+    !process.env.LIBRETRANSLATE_URL ? 'LIBRETRANSLATE_URL(무료·셀프호스팅)' : null,
+    !process.env.GOOGLE_TRANSLATE_API_KEY ? 'GOOGLE_TRANSLATE_API_KEY' : null,
+  ].filter(Boolean);
+  return missing.length
+    ? `${missing.join(' 또는 ')} 를 설정하면 이 언어도 번역됩니다.`
+    : '설정된 제공자 중 이 언어를 처리할 수 있는 곳이 없습니다.';
+}
 
 /* ---- DeepL ---------------------------------------------------------------- */
 
@@ -309,7 +325,7 @@ export async function translate(req: TranslateRequest): Promise<TranslateResult>
        "Tolgee 미설정" 이라고 말하면 엉뚱한 곳을 보게 된다. */
     if (unsupportedBy) {
       throw new TranslationError(
-        `${LOCALES[req.target].koName}는 ${PROVIDER_LABEL[unsupportedBy]}이(가) 지원하지 않습니다. ${FREE_HINT}`,
+        `${LOCALES[req.target].koName}는 ${PROVIDER_LABEL[unsupportedBy]}이(가) 지원하지 않습니다. ${nextStepFor(unsupportedBy)}`,
         'none',
         undefined,
         true,

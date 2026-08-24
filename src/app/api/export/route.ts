@@ -4,6 +4,7 @@ import JSZip from 'jszip';
 import { assertAdmin } from '@/lib/server/auth';
 import { listPages } from '@/lib/server/pageStore';
 import { buildStaticExport, readmeText } from '@/lib/server/export/staticExport';
+import { isStaticSiteConfigured } from '@/lib/server/cors';
 
 export const dynamic = 'force-dynamic';
 /** 페이지 수만큼 자기 자신을 크롤링한다 — 기본 타임아웃으로는 모자란다 */
@@ -38,14 +39,29 @@ export async function POST(request: Request) {
 
   /* 문의·분석을 계속 받을 절대 주소. 화면에서 준 값 > SITE_URL > 지금 주소 순.
      빈 문자열을 명시적으로 주면 '끄기'로 본다. */
-  const apiBase =
+  const requestedApiBase =
     body.apiBase !== undefined ? body.apiBase.trim() : (process.env.SITE_URL ?? origin);
+
+  /* 주소만 심어 봐야 소용없다. 정적 사본은 다른 도메인에서 이 API 를 부르므로
+     STATIC_SITE_ORIGINS 에 그 도메인이 없으면 브라우저가 프리플라이트에서
+     막는다 — 폼은 '보내는 척'하다 실패하고, 안내문은 접수된다고 약속한다.
+     허용 설정이 없으면 처음부터 주소를 심지 않고, 무엇을 해야 하는지 알린다. */
+  const corsReady = isStaticSiteConfigured();
+  const apiBase = corsReady ? requestedApiBase : '';
+  const extraWarnings = requestedApiBase && !corsReady
+    ? [
+        'STATIC_SITE_ORIGINS 가 비어 있어 문의 폼과 방문 분석을 껐습니다. ' +
+          '정적 사본을 올릴 도메인(예: https://www.your-domain.co.kr)을 이 배포본의 ' +
+          'STATIC_SITE_ORIGINS 에 넣고 다시 내보내면 정적 사본의 문의도 접수됩니다.',
+      ]
+    : [];
 
   const result = await buildStaticExport({
     origin,
     paths: published.map((p) => p.path),
     apiBase: apiBase || undefined,
   });
+  result.warnings.unshift(...extraWarnings);
 
   if (!result.files.length) {
     return NextResponse.json({ error: result.warnings.join(' / ') || '내보낼 것이 없습니다.' }, { status: 500 });

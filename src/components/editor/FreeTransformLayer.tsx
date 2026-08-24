@@ -371,6 +371,15 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
     });
   };
 
+  /** 선택한 요소 삭제 — 단축키와 ✕ 버튼이 같은 경로를 쓴다 */
+  const removeSelected = React.useCallback(() => {
+    if (!selected) return;
+    const selector = getSelectorForId(selected.id);
+    if (!selector) return;
+    dispatch({ type: 'remove', index: selector.index, zone: selector.zone });
+    setPickedId(null);
+  }, [selected, getSelectorForId, dispatch, setPickedId]);
+
   /* 키보드 조작 — 방향키 미세 이동, 삭제, 복제, 선택 해제.
      입력란에 포커스가 있을 때는 가로채지 않는다. */
   React.useEffect(() => {
@@ -379,6 +388,11 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+      /* 캔버스 안에서 글자를 고치는 중이면 Backspace 는 글자를 지워야 한다.
+         Puck 의 인라인 편집은 contenteditable 을 쓰지만, 편집 중인 노드가
+         target 이 아닐 수도 있어 문서 기준으로 한 번 더 확인한다. */
+      const editing = target.ownerDocument?.activeElement as HTMLElement | null;
+      if (editing?.isContentEditable) return;
 
       if (e.key === 'Escape') {
         setPickedId(null);
@@ -386,15 +400,13 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
       }
 
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        const selector = getSelectorForId(selected.id);
-        if (!selector) return;
+        if (!getSelectorForId(selected.id)) return;
         e.preventDefault();
         /* Puck 도 같은 키에 자체 삭제를 붙여 둔다. 막지 않으면 두 번 지워진다 —
            우리가 요소를 지운 뒤 인덱스가 당겨진 자리에서 Puck 이 한 번 더
            지워, 방금 만든 텍스트 하나를 지웠는데 섹션이 통째로 날아간다. */
         e.stopImmediatePropagation();
-        dispatch({ type: 'remove', index: selector.index, zone: selector.zone });
-        setPickedId(null);
+        removeSelected();
         return;
       }
 
@@ -423,8 +435,21 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
 
     /* 캡처 단계로 받는다 — Puck 의 리스너보다 먼저 실행돼야 중복 삭제를 막을 수 있다 */
     window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [selected, commit, dispatch, getSelectorForId, setPickedId]);
+
+    /* 캔버스 문서에도 같이 건다.
+       키 이벤트는 iframe 밖으로 나오지 않는다. 캔버스에서 섹션이나 도형을
+       클릭하면 포커스가 iframe 안에 있으므로, 부모 window 에만 걸어 두면
+       Delete·Backspace·방향키가 통째로 먹지 않는다 — 오히려 Backspace 가
+       브라우저의 '뒤로 가기'로 새어 나가기도 한다. 실제로 캔버스를 눌러
+       고른 뒤 지우려는 상황이 대부분이라, 이쪽이 정상 경로다. */
+    const canvasDoc = readGeometry(containerRef.current)?.doc ?? null;
+    canvasDoc?.addEventListener('keydown', onKey, true);
+
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+      canvasDoc?.removeEventListener('keydown', onKey, true);
+    };
+  }, [selected, commit, dispatch, getSelectorForId, setPickedId, containerRef, removeSelected]);
 
   /* 좌표를 containerRef 기준으로 계산하므로, 실제 DOM 도 그 컨테이너 안에 있어야
      한다. Puck 내부 어딘가에 렌더되면 offsetParent 가 달라져 위치가 어긋난다. */
@@ -605,9 +630,31 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
         <span style={badge}>
           {Math.round(Number(selected.placement?.x ?? 0))}, {Math.round(Number(selected.placement?.y ?? 0))}
           <span style={{ opacity: 0.75, fontWeight: 500, marginLeft: 6 }}>
-            방향키 이동 · Del 삭제 · Esc 해제
+            방향키 이동 · Del·Backspace 삭제 · Esc 해제
           </span>
         </span>
+
+        {/* 눌러서 지우기.
+            단축키만 두면 "지우는 방법이 없다"고 느끼기 쉽다 — 특히 캔버스를
+            클릭해 고른 직후에는 포커스가 어디 있는지 눈에 보이지 않는다. */}
+        <button
+          type="button"
+          data-ks-remove="1"
+          title="이 요소 삭제 (Del · Backspace)"
+          onPointerDown={(e) => {
+            /* 이 누름이 선택 상자의 이동 드래그로 번지면 안 된다.
+               다만 preventDefault 는 쓰면 안 된다 — pointerdown 을 취소하면
+               뒤따르는 click 자체가 사라져서 버튼이 눌리지 않는다. */
+            e.stopPropagation();
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            removeSelected();
+          }}
+          style={removeBtn}
+        >
+          ✕
+        </button>
 
         {HANDLES.map((h) => (
           <span
@@ -633,6 +680,25 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
     host,
   );
 }
+
+const removeBtn: React.CSSProperties = {
+  position: 'absolute',
+  top: -24,
+  right: -2,
+  width: 20,
+  height: 20,
+  lineHeight: '18px',
+  textAlign: 'center',
+  borderRadius: 4,
+  border: '1px solid rgba(255,255,255,.25)',
+  background: '#ef4444',
+  color: '#fff',
+  fontSize: 11,
+  fontWeight: 700,
+  cursor: 'pointer',
+  pointerEvents: 'auto',
+  padding: 0,
+};
 
 const badge: React.CSSProperties = {
   position: 'absolute',

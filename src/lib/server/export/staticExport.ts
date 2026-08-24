@@ -42,6 +42,8 @@ export interface ExportOptions {
    */
   apiBase?: string;
   fetchImpl?: typeof fetch;
+  /** 자산 하나를 기다리는 한도 (테스트에서 줄인다) */
+  timeoutMs?: number;
 }
 
 export interface ExportResult {
@@ -123,8 +125,12 @@ export function collectAssetUrls(html: string): string[] {
     for (const part of m[1].split(',')) add(part.trim().split(/\s+/)[0]);
   }
   for (const m of html.matchAll(/url\(\s*['"]?([^'")]+)['"]?\s*\)/g)) add(m[1]);
-  // 페이로드에 escape 된 채 들어 있는 것까지 (\" 로 감싸인 경우 포함)
-  for (const m of html.matchAll(/\/_next\/static\/[A-Za-z0-9._\-/]+/g)) add(m[0]);
+  /* 페이로드에 escape 된 채 들어 있는 것까지 (\" 로 감싸인 경우 포함).
+     % 를 빼면 안 된다 — Next 는 이 앱의 유일한 공개 라우트를
+     /_next/static/chunks/app/%5B%5B...slug%5D%5D/… 로 인코딩해 심어 두는데,
+     % 가 없으면 그 앞에서 끊겨 확장자 없는 조각이 되고 뒤의 필터에 걸러진다.
+     그러면 이 '동적으로 불리는 청크' 안전망이 통째로 무용지물이 된다. */
+  for (const m of html.matchAll(/\/_next\/static\/[A-Za-z0-9._\-/%]+/g)) add(m[0]);
 
   return [...found].filter((u) => !u.endsWith('/') && /\.[a-z0-9]+$/i.test(u.split('?')[0]));
 }
@@ -186,11 +192,22 @@ export async function buildStaticExport(options: ExportOptions): Promise<ExportR
     files.push({ path, body });
   };
 
+  /**
+   * 한 번의 요청을 '본문까지' 받아 온다.
+   *
+   * 응답 객체만 돌려주고 타이머를 끄면 안 된다. fetch 는 헤더만 오면 resolve
+   * 하므로, 그 시점에 abort 를 풀어 버리면 본문이 멈춘 요청은 아무도 못 끊는다.
+   * 자산 하나 때문에 내보내기 전체가 maxDuration 까지 매달린다 —
+   * 그 자산만 경고로 남기고 넘어가려던 의도가 죽는다.
+   */
   const get = async (url: string, headers?: Record<string, string>) => {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), ASSET_TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? ASSET_TIMEOUT_MS);
     try {
-      return await doFetch(`${base}${url}`, { headers, signal: controller.signal });
+      const res = await doFetch(`${base}${url}`, { headers, signal: controller.signal });
+      if (!res.ok) return { ok: false as const, status: res.status };
+      const buffer = Buffer.from(await res.arrayBuffer());
+      return { ok: true as const, status: res.status, buffer, type: res.headers.get('content-type') ?? '' };
     } finally {
       clearTimeout(timer);
     }
@@ -198,7 +215,7 @@ export async function buildStaticExport(options: ExportOptions): Promise<ExportR
 
   /* --- 1) 페이지 --- */
   for (const route of paths) {
-    let res: Response;
+    let res: Awaited<ReturnType<typeof get>>;
     try {
       res = await get(route, { [EXPORT_HEADER]: '1' });
     } catch (err) {
@@ -209,7 +226,7 @@ export async function buildStaticExport(options: ExportOptions): Promise<ExportR
       warnings.push(`${route} — 서버가 ${res.status} 로 응답했습니다`);
       continue;
     }
-    const html = await res.text();
+    const html = res.buffer.toString('utf8');
     for (const url of collectAssetUrls(html)) {
       if (!seenAssets.has(url)) {
         seenAssets.add(url);
@@ -232,9 +249,7 @@ export async function buildStaticExport(options: ExportOptions): Promise<ExportR
         try {
           const res = await get(url);
           if (!res.ok) return { url, error: `${res.status}` };
-          const body = Buffer.from(await res.arrayBuffer());
-          const type = res.headers.get('content-type') ?? '';
-          return { url, body, isCss: type.includes('css') || url.endsWith('.css') };
+          return { url, body: res.buffer, isCss: res.type.includes('css') || url.endsWith('.css') };
         } catch (err) {
           return { url, error: err instanceof Error ? err.message : '알 수 없음' };
         }
@@ -263,7 +278,7 @@ export async function buildStaticExport(options: ExportOptions): Promise<ExportR
     if (takenPaths.has(filePathForAsset(extra))) continue; // 본문에서 이미 받았다
     try {
       const res = await get(extra);
-      if (res.ok) addFile(filePathForAsset(extra), Buffer.from(await res.arrayBuffer()));
+      if (res.ok) addFile(filePathForAsset(extra), res.buffer);
     } catch {
       // 없어도 사이트는 뜬다 — 경고까지 낼 일은 아니다
     }

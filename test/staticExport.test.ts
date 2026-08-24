@@ -258,3 +258,43 @@ describe('중복 파일', () => {
     expect(new Set(out.files.map((f) => f.path)).size).toBe(out.files.length);
   });
 });
+
+describe('회귀 — 코드 리뷰에서 잡힌 것들', () => {
+  /* % 를 빼면 이 앱의 유일한 공개 라우트 청크가 앞에서 끊겨 필터에 걸러진다.
+     그러면 '동적으로 불리는 청크' 안전망이 통째로 무용지물이 된다. */
+  it('페이로드 안의 퍼센트 인코딩된 청크 주소도 잡는다', () => {
+    const html = `<script>self.__next_f.push([1,"\\"/_next/static/chunks/app/%5B%5B...slug%5D%5D/page-abc.js\\""])</script>`;
+    expect(collectAssetUrls(html)).toContain('/_next/static/chunks/app/%5B%5B...slug%5D%5D/page-abc.js');
+  });
+
+  it('그 주소는 실제 폴더 이름으로 저장된다 (왕복 확인)', () => {
+    const html = `<script>self.__next_f.push([1,"/_next/static/chunks/app/%5B%5B...slug%5D%5D/page-abc.js"])</script>`;
+    expect(filePathForAsset(collectAssetUrls(html)[0])).toBe(
+      '_next/static/chunks/app/[[...slug]]/page-abc.js',
+    );
+  });
+
+  /* fetch 는 헤더만 오면 resolve 한다. 본문이 멈춘 요청을 끊지 못하면
+     자산 하나 때문에 내보내기 전체가 매달린다. */
+  it('본문이 멈춘 자산은 내보내기를 붙잡지 않고 경고로 남는다', async () => {
+    const impl = (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(String(input));
+      if (url.pathname === '/') {
+        return new Response('<html><head><link rel="stylesheet" href="/stall.css"></head><body>홈</body></html>', {
+          headers: { 'Content-Type': 'text/html' },
+        });
+      }
+      // 헤더는 즉시, 본문은 영원히 오지 않는 응답
+      const body = new ReadableStream({
+        start(controller) {
+          init?.signal?.addEventListener('abort', () => controller.error(new Error('aborted')));
+        },
+      });
+      return new Response(body, { headers: { 'Content-Type': 'text/css' } });
+    }) as unknown as typeof fetch;
+
+    const out = await buildStaticExport({ origin: 'http://x', paths: ['/'], fetchImpl: impl, timeoutMs: 300 });
+    expect(out.files.map((f) => f.path)).toEqual(['index.html']);
+    expect(out.warnings.join(' ')).toMatch(/stall\.css/);
+  }, 10_000);
+});

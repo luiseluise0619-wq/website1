@@ -251,3 +251,29 @@ describe('providerStatus — 설정 여부만 보고한다', () => {
     expect(providerStatus().tolgee).toBe(true);
   });
 });
+
+describe('미지원 언어 안내 — 이미 한 일을 또 시키지 않는다', () => {
+  it('LibreTranslate 가 그 언어를 못 하면 주소가 아니라 언어 모델을 알려 준다', async () => {
+    process.env.LIBRETRANSLATE_URL = origin;
+    handler = () => ({ status: 400, json: { error: 'th is not supported' } });
+
+    await translate({ texts: ['안녕'], source: 'ko', target: 'th' }).catch((e: TranslationError) => {
+      expect(e.message).toMatch(/태국어/);
+      expect(e.message).toMatch(/LT_LOAD_ONLY/);
+      // 이미 설정해 둔 것을 또 넣으라고 하면 엉뚱한 곳을 보게 된다
+      expect(e.message).not.toMatch(/LIBRETRANSLATE_URL 을 설정/);
+    });
+    expect.assertions(3);
+  });
+
+  it('DeepL 미지원인데 무료 경로가 이미 있으면 그것을 다시 권하지 않는다', async () => {
+    process.env.DEEPL_API_KEY = 'dummy';
+    process.env.LIBRETRANSLATE_URL = origin;
+    handler = () => ({ status: 400, json: { error: 'not supported' } });
+
+    await translate({ texts: ['안녕'], source: 'ko', target: 'th' }).catch((e: TranslationError) => {
+      expect(e.message).not.toMatch(/LIBRETRANSLATE_URL\(무료/);
+    });
+    expect.assertions(1);
+  });
+});
