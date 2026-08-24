@@ -6,6 +6,7 @@ import { LOCALES, LOCALE_ORDER } from '@/lib/i18n';
 import { translatePage } from '@/lib/translate/pipeline';
 import { coverageReport } from '@/lib/translate/walk';
 import { PAGE_TEMPLATES } from '@/data/templates';
+import { SitePreview } from './SitePreview';
 import type { LocaleCode, PuckPageData } from '@/types/schema';
 
 /* =============================================================================
@@ -77,6 +78,7 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
 
   const [message, setMessage] = React.useState<string | null>(null);
   const [exporting, setExporting] = React.useState(false);
+  const [previewing, setPreviewing] = React.useState(false);
 
   /* 이 페이지가 노출하는 언어만 다룬다(SEO 탭에서 지정). 끈 언어까지 번역하면
      보이지도 않을 문장에 번역 API 비용을 쓰게 된다. */
@@ -334,6 +336,14 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
         </a>
         <button
           type="button"
+          onClick={() => setPreviewing(true)}
+          title="방문자가 보는 실제 화면을 에디터 안에서 확인합니다 (저장된 내용 기준)"
+          style={btn}
+        >
+          미리보기
+        </button>
+        <button
+          type="button"
           onClick={handleExport}
           disabled={exporting}
           title="발행된 페이지를 정적 HTML(zip)로 내려받습니다 — 웹호스팅에 그대로 올릴 수 있습니다"
@@ -371,6 +381,15 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
         <div style={toast} onClick={() => setMessage(null)}>
           {message}
         </div>
+      ) : null}
+
+      {previewing ? (
+        <SitePreview
+          path={page.path}
+          locales={enabledLocales}
+          dirty={dirty}
+          onClose={() => setPreviewing(false)}
+        />
       ) : null}
     </div>
   );

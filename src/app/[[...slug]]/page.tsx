@@ -4,6 +4,7 @@ import { PageRenderer } from '@/components/site/PageRenderer';
 import { getPageByPath, listPages } from '@/lib/server/pageStore';
 import { DEFAULT_LOCALE, LOCALES, LOCALE_COOKIE, LOCALE_ORDER, isLocale, parseAcceptLanguage, t } from '@/lib/i18n';
 import { EXPORT_HEADER } from '@/lib/server/export/staticExport';
+import { isAdminRequest } from '@/lib/server/auth';
 import type { Metadata } from 'next';
 import type { LocaleCode } from '@/types/schema';
 
@@ -20,7 +21,7 @@ interface Params {
   params: { slug?: string[] };
   /* hreflang 이 ?lang= 주소를 알리므로 서버도 이 값을 읽어야 한다.
      Next 는 같은 키가 반복되면 배열로 넘기므로 두 형태를 모두 받는다. */
-  searchParams?: { lang?: string | string[]; locale?: string | string[] };
+  searchParams?: { lang?: string | string[]; locale?: string | string[]; site?: string | string[] };
 }
 
 /** 반복 파라미터(?lang=en&lang=ko)는 첫 값만 쓴다 */
@@ -89,7 +90,18 @@ export async function generateMetadata({ params, searchParams }: Params): Promis
 }
 
 export default async function DynamicPage({ params, searchParams }: Params) {
-  const page = await getPageByPath(pathFromSlug(params.slug));
+  const path = pathFromSlug(params.slug);
+
+  /* 로그인한 운영자가 사이트 첫 화면으로 들어오면 에디터로 보낸다.
+     이 제품에서 첫 화면을 여는 사람은 대개 '고치러 온 주인'이다.
+     방문자에게는 아무 영향이 없고(쿠키가 없으니 그대로 사이트),
+     주인이 공개 화면을 보고 싶을 때는 ?site=1 로 빠져나갈 수 있다
+     (에디터의 [사이트 보기] 가 그 주소를 쓴다). */
+  if (path === '/' && !firstParam(searchParams?.site) && !headers().get(EXPORT_HEADER) && isAdminRequest()) {
+    redirect('/admin/editor');
+  }
+
+  const page = await getPageByPath(path);
 
   // 초안/보관 페이지는 공개 사이트에 노출하지 않는다
   if (!page || page.status !== 'published') notFound();
