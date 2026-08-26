@@ -33,6 +33,8 @@ export function AddMenu({ items }: { items: AddMenuItem[] }) {
   React.useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
+      /* 캔버스 문서에서 온 이벤트는 우리 트리에 절대 포함되지 않는다 —
+         contains() 로 따질 것 없이 바깥이다. */
       if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
@@ -40,9 +42,19 @@ export function AddMenu({ items }: { items: AddMenuItem[] }) {
     };
     document.addEventListener('mousedown', onDown);
     window.addEventListener('keydown', onKey);
+
+    /* 캔버스는 iframe 이라 그 안의 클릭·키는 부모 문서로 나오지 않는다.
+       부모에만 걸어 두면 메뉴를 열어 둔 채 캔버스를 눌렀을 때 닫히지 않고
+       화면을 계속 가린다. */
+    const canvasDoc = document.querySelector<HTMLIFrameElement>('iframe#preview-frame')?.contentDocument;
+    canvasDoc?.addEventListener('mousedown', onDown);
+    canvasDoc?.addEventListener('keydown', onKey as EventListener);
+
     return () => {
       document.removeEventListener('mousedown', onDown);
       window.removeEventListener('keydown', onKey);
+      canvasDoc?.removeEventListener('mousedown', onDown);
+      canvasDoc?.removeEventListener('keydown', onKey as EventListener);
     };
   }, [open]);
 

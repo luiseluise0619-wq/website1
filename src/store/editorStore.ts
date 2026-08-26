@@ -6,6 +6,7 @@ import { setLocalized, DEFAULT_LOCALE } from '@/lib/i18n';
 import { getTemplate, templateSourceLocale, titleText } from '@/data/templates';
 import type {
   LocaleCode,
+  NavNode,
   PageDocument,
   PuckPageData,
   SeoMeta,
@@ -76,8 +77,13 @@ export interface EditorState {
      '새로 만드는 일'을 한 버튼에 모으려면 그 버튼이 여기저기 흩어진 기능을
      불러야 한다. 컴포넌트끼리 직접 부르게 엮으면 트리 모양에 묶이므로,
      스토어에 신호만 남기고 할 수 있는 쪽이 집어 간다. */
-  /** 새 페이지 대화상자가 열려 있는가 (좌측 목록이 실제로 그린다) */
-  newPageOpen: boolean;
+  /**
+   * 새 페이지 대화상자 상태. null 이면 닫힘.
+   * preset 이 있으면 그 메뉴 자리에 만드는 것(경로·제목이 미리 채워진다).
+   * EditorShell 이 그린다 — 좌측 목록 안에서 그리면 목록을 접었을 때
+   * 대화상자를 열 방법이 사라진다.
+   */
+  newPage: { preset: NavNode | null } | null;
   /** 섹션 추가 요청 횟수 — 캔버스 조작 레이어가 늘어난 것을 보고 만든다 */
   addSectionRequest: number;
 }
@@ -114,7 +120,7 @@ export interface EditorActions {
   setAnalyticsError: (message: string | null) => void;
 
   setRightTab: (tab: RightTab) => void;
-  setNewPageOpen: (v: boolean) => void;
+  setNewPage: (v: { preset: NavNode | null } | null) => void;
   requestAddSection: () => void;
   setSaving: (v: boolean) => void;
   markSaved: (saved?: Array<{ id: string; revision: number }>) => void;
@@ -165,7 +171,7 @@ export const useEditorStore = create<EditorStore>((set, get) => {
     lastSavedAt: null,
     pickedElementId: null,
     rightTab: 'style',
-    newPageOpen: false,
+    newPage: null,
     addSectionRequest: 0,
 
     loadPages: (pages) =>
@@ -275,7 +281,7 @@ export const useEditorStore = create<EditorStore>((set, get) => {
       patchPage(pageId, (p) => (p.content === content ? p : { ...p, content, revision: p.revision + 1 })),
 
     setRightTab: (rightTab) => set({ rightTab }),
-    setNewPageOpen: (newPageOpen) => set({ newPageOpen }),
+    setNewPage: (newPage) => set({ newPage }),
     requestAddSection: () => set((s) => ({ addSectionRequest: s.addSectionRequest + 1 })),
 
     setEditingLocale: (editingLocale) => set({ editingLocale }),

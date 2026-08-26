@@ -113,19 +113,23 @@ export function PageRenderer({ page, initialLocale, chrome = true, analytics = t
         data-ks-site="true"
         data-page-id={page.id}
         data-locale={locale}
-        /* 미리보기 안에서 내부 링크를 누르면 ?site=1 을 붙여 따라간다.
+        /* 미리보기 안에서 내부 링크를 누르면 ?preview=1 을 붙여 따라간다.
            링크마다 주소를 고쳐 쓰는 대신 한 곳에서 가로챈다 — 블록이 만드는
-           링크(Button 의 navigate 등)까지 빠짐없이 걸린다. */
+           링크(Button 의 navigate 등)까지 빠짐없이 걸린다.
+           새 탭/새 창으로 여는 조작은 가로채지 않는다 — 그건 미리보기를
+           벗어나 진짜 화면을 보려는 뜻이다. */
         onClickCapture={
           previewMode
             ? (e) => {
+                if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
                 const link = (e.target as HTMLElement).closest?.('a');
                 const href = link?.getAttribute('href');
                 if (!href || !href.startsWith('/') || href.startsWith('//')) return;
-                if (href.includes('site=1')) return;
+                if (link?.target === '_blank') return;
+                if (href.includes('preview=1')) return;
                 e.preventDefault();
-                const [path, query] = href.split('?');
-                window.location.href = `${path}?${query ? `${query}&` : ''}site=1`;
+                const [linkPath, query] = href.split('?');
+                window.location.href = `${linkPath}?${query ? `${query}&` : ''}preview=1`;
               }
             : undefined
         }

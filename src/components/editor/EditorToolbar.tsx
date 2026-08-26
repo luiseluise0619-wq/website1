@@ -77,7 +77,7 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
   const showBadges = useEditorStore((s) => s.showTranslationBadges);
   const toggleBadges = useEditorStore((s) => s.toggleTranslationBadges);
   const applyTemplate = useEditorStore((s) => s.applyTemplate);
-  const setNewPageOpen = useEditorStore((s) => s.setNewPageOpen);
+  const setNewPage = useEditorStore((s) => s.setNewPage);
   const requestAddSection = useEditorStore((s) => s.requestAddSection);
 
   const [message, setMessage] = React.useState<string | null>(null);
@@ -357,7 +357,7 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
               icon: '📄',
               label: '새 페이지',
               hint: '주소와 템플릿을 정해 페이지를 하나 만듭니다',
-              onSelect: () => setNewPageOpen(true),
+              onSelect: () => setNewPage({ preset: null }),
             },
             {
               key: 'section',

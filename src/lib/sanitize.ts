@@ -97,8 +97,15 @@ export function sanitizeEmbedHtml(input: string): string {
   ensureHook();
   const cleaned = DOMPurify.sanitize(input, {
     ...BASE_CONFIG,
-    ALLOWED_TAGS: [...ALLOWED_TAGS, 'iframe', 'div', 'figure', 'figcaption'],
-    ALLOWED_ATTR: [...ALLOWED_ATTR, 'src', 'width', 'height', 'allow', 'allowfullscreen', 'title', 'loading', 'frameborder'],
+    /* img 가 빠져 있으면 <a class="logo"><img></a> 같은 흔한 조각이 통째로
+       사라진다 — 정화 뒤 남는 게 없어 블록이 하나도 만들어지지 않는다.
+       그림은 embed 에서도 정상적인 내용물이다. */
+    ALLOWED_TAGS: [...ALLOWED_TAGS, 'iframe', 'div', 'figure', 'figcaption', 'img', 'picture', 'source'],
+    ALLOWED_ATTR: [
+      ...ALLOWED_ATTR,
+      'src', 'alt', 'srcset', 'sizes', 'width', 'height',
+      'allow', 'allowfullscreen', 'title', 'loading', 'frameborder',
+    ],
     ALLOWED_URI_REGEXP: /^(?:https?:|[/#])/i,
   });
 

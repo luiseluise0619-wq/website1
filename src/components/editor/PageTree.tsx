@@ -4,7 +4,6 @@ import React from 'react';
 import { useEditorStore } from '@/store/editorStore';
 import { fetchJson } from '@/lib/fetchJson';
 import { NAVIGATION } from '@/data/navigation';
-import { NewPageDialog, type NewPageResult } from './NewPageDialog';
 import type { NavNode, PageDocument } from '@/types/schema';
 
 /* =============================================================================
@@ -21,31 +20,17 @@ export function PageTree({ onError }: PageTreeProps = {}) {
   const pages = useEditorStore((s) => s.pages);
   const activePageId = useEditorStore((s) => s.activePageId);
   const setActivePage = useEditorStore((s) => s.setActivePage);
-  const createPage = useEditorStore((s) => s.createPage);
   const deletePage = useEditorStore((s) => s.deletePage);
   const duplicatePage = useEditorStore((s) => s.duplicatePage);
   const [filter, setFilter] = React.useState('');
   /** null = 닫힘, undefined preset = 빈 페이지에서 시작 */
-  const [dialog, setDialog] = React.useState<{ preset: NavNode | null } | null>(null);
-  /* 상단 [＋ 추가] 도 같은 대화상자를 연다 — 대화상자는 여기 한 곳에서만
-     그린다(두 벌을 두면 둘 다 열려 겹치는 날이 온다). */
-  const newPageOpen = useEditorStore((s) => s.newPageOpen);
-  const setNewPageOpen = useEditorStore((s) => s.setNewPageOpen);
-  React.useEffect(() => {
-    if (newPageOpen) setDialog({ preset: null });
-  }, [newPageOpen]);
+  /* 대화상자는 EditorShell 이 그린다.
+     여기서 그리면 좌측 목록을 접었을 때([넓게]) 이 컴포넌트 자체가 사라져
+     상단 [＋ 추가 → 새 페이지] 가 아무 일도 하지 않고, 게다가 열림 표시가
+     남아 있어 목록을 다시 펼치는 순간 대화상자가 저절로 튀어나왔다. */
+  const setNewPage = useEditorStore((s) => s.setNewPage);
 
   const byPath = React.useMemo(() => new Map(pages.map((p) => [p.path, p])), [pages]);
-
-  const closeDialog = () => {
-    setDialog(null);
-    setNewPageOpen(false);
-  };
-
-  const handleCreate = (result: NewPageResult) => {
-    closeDialog();
-    createPage(result);
-  };
 
   /* 삭제는 서버까지 지워야 한다. 화면에서만 지우면 새로고침에 되살아나고,
      공개 사이트에서는 계속 서빙된다 — '지웠는데 아직 보인다'가 된다. */
@@ -66,7 +51,7 @@ export function PageTree({ onError }: PageTreeProps = {}) {
           예전에는 목록 맨 아래에 있었는데, 페이지가 39개면 스크롤 끝이라
           "새 페이지를 어디서 만드나"를 매번 찾아야 했다. */}
       <div style={{ padding: '10px 12px 0' }}>
-        <button type="button" onClick={() => setDialog({ preset: null })} style={createBtn}>
+        <button type="button" onClick={() => setNewPage({ preset: null })} style={createBtn}>
           ＋ 새 페이지
         </button>
       </div>
@@ -91,7 +76,7 @@ export function PageTree({ onError }: PageTreeProps = {}) {
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 6px' }}>
         {NAVIGATION.map((node) => (
           <div key={node.id} style={{ marginBottom: 6 }}>
-            <NavRow node={node} page={byPath.get(node.path ?? '')} depth={0} onCreate={(n) => setDialog({ preset: n })} activePageId={activePageId} onSelect={setActivePage} onDelete={handleDelete} onDuplicate={duplicatePage} visible={matches(node.label)} />
+            <NavRow node={node} page={byPath.get(node.path ?? '')} depth={0} onCreate={(n) => setNewPage({ preset: n })} activePageId={activePageId} onSelect={setActivePage} onDelete={handleDelete} onDuplicate={duplicatePage} visible={matches(node.label)} />
             {node.children?.map((child) =>
               matches(child.label) || matches(node.label) ? (
                 <NavRow
@@ -99,7 +84,7 @@ export function PageTree({ onError }: PageTreeProps = {}) {
                   node={child}
                   page={byPath.get(child.path ?? '')}
                   depth={1}
-                  onCreate={(node) => setDialog({ preset: node })}
+                  onCreate={(node) => setNewPage({ preset: node })}
                   activePageId={activePageId}
                   onSelect={setActivePage}
                   onDelete={handleDelete} onDuplicate={duplicatePage}
@@ -114,14 +99,6 @@ export function PageTree({ onError }: PageTreeProps = {}) {
         <CustomPages pages={pages} activePageId={activePageId} onSelect={setActivePage} onDelete={handleDelete} onDuplicate={duplicatePage} />
       </div>
 
-      {dialog ? (
-        <NewPageDialog
-          preset={dialog.preset}
-          existingPaths={pages.map((p) => p.path)}
-          onCancel={closeDialog}
-          onCreate={handleCreate}
-        />
-      ) : null}
     </div>
   );
 }

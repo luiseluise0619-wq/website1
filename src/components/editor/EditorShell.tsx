@@ -10,6 +10,7 @@ import { fetchJson } from '@/lib/fetchJson';
 import { PageTree } from './PageTree';
 import { EditorToolbar } from './EditorToolbar';
 import { RightPanel } from './RightPanel';
+import { NewPageDialog } from './NewPageDialog';
 import { FreeTransformLayer } from './FreeTransformLayer';
 import { HeatmapOverlay } from '@/components/analytics/HeatmapOverlay';
 import type { Data } from '@puckeditor/core';
@@ -117,6 +118,11 @@ export function EditorShell({
   const markSaved = useEditorStore((s) => s.markSaved);
   const updatePageMeta = useEditorStore((s) => s.updatePageMeta);
   const rightTab = useEditorStore((s) => s.rightTab);
+  /* 새 페이지 대화상자는 여기서 그린다 — 좌측 목록 안에서 그리면 목록을
+     접었을 때([넓게]) 상단 [＋ 추가 → 새 페이지] 가 아무 일도 하지 않는다. */
+  const newPage = useEditorStore((s) => s.newPage);
+  const setNewPage = useEditorStore((s) => s.setNewPage);
+  const createPage = useEditorStore((s) => s.createPage);
 
   const [saveError, setSaveError] = React.useState<string | null>(null);
   /* 좌측 페이지 트리는 접을 수 있다.
@@ -337,6 +343,18 @@ export function EditorShell({
         </div>
 
       </div>
+
+      {newPage ? (
+        <NewPageDialog
+          preset={newPage.preset}
+          existingPaths={pages.map((p) => p.path)}
+          onCancel={() => setNewPage(null)}
+          onCreate={(result) => {
+            setNewPage(null);
+            createPage(result);
+          }}
+        />
+      ) : null}
     </RenderCtx.Provider>
   );
 }

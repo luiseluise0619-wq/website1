@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { appendImported, htmlToPage } from '@/lib/importHtml';
+import { puckConfig } from '@/puck/config';
 import type { LocaleCode, PuckPageData } from '@/types/schema';
 
 /* =============================================================================
@@ -31,6 +32,20 @@ export function ImportHtmlDialog({
   onClose: () => void;
 }) {
   const [html, setHtml] = React.useState('');
+
+  /* Puck 은 에디터에서만 기본값을 채운다 — <Render> 는 채우지 않는다.
+     기본값 없이 만든 블록은 캔버스에서만 멀쩡하고 공개 사이트에서는 서식이
+     빠진 채 나간다. 만들 때 함께 박아 두려고 여기서 넘긴다. */
+  const defaults = React.useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(puckConfig.components).map(([type, def]) => [
+          type,
+          (def as { defaultProps?: Record<string, unknown> }).defaultProps ?? {},
+        ]),
+      ),
+    [],
+  );
   const [mode, setMode] = React.useState<Mode>('append');
   const [error, setError] = React.useState<string | null>(null);
   const fileRef = React.useRef<HTMLInputElement>(null);
@@ -51,11 +66,11 @@ export function ImportHtmlDialog({
   const preview = React.useMemo(() => {
     if (!settled.trim()) return null;
     try {
-      return htmlToPage(settled, { locale });
+      return htmlToPage(settled, { locale, defaults });
     } catch (err) {
       return { error: err instanceof Error ? err.message : '해석 실패' } as const;
     }
-  }, [settled, locale]);
+  }, [settled, locale, defaults]);
 
   const readFile = async (file: File | undefined) => {
     if (!file) return;
@@ -73,7 +88,7 @@ export function ImportHtmlDialog({
       return;
     }
     try {
-      const { data } = htmlToPage(html, { locale });
+      const { data } = htmlToPage(html, { locale, defaults });
       onApply(mode === 'append' ? appendImported(getCurrentData(), data) : data);
       onClose();
     } catch (err) {

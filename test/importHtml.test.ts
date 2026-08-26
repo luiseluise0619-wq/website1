@@ -243,3 +243,35 @@ describe('회귀 — 두 번째 코드 리뷰에서 잡힌 것들', () => {
     expect(summary.notes.join(' ')).toMatch(/가져오지 못했습니다/);
   });
 });
+
+describe('기본값 — 캔버스와 공개 사이트가 같아야 한다', () => {
+  const defaults = {
+    Text: { style: { color: '#111827', typography: { fontSize: 36, fontWeight: 700 } }, tag: 'h2', name: 'Text' },
+    Image: { style: { width: 240 } },
+  };
+  const withDefaults = (html: string) => htmlToPage(html, { locale: 'ko', parseDocument, defaults });
+
+  /* Puck 은 에디터에서만 기본값을 채우고 <Render> 에서는 채우지 않는다.
+     만들 때 박아 두지 않으면 캔버스와 공개 사이트가 달라 보인다. */
+  it('블록 기본값을 함께 박는다', () => {
+    const { data } = withDefaults('<img src="/a.png">');
+    const img = allBlocks(data).find((b) => b.type === 'Image')!;
+    expect(img.props.name ?? null).toBe(null);
+    expect(img.props.src).toBe('/a.png');
+  });
+
+  /* Text 기본값은 '새로 놓는 제목'용이라 36px 굵게가 박혀 있다 —
+     그대로 두면 가져온 본문이 전부 제목 크기로 나온다 */
+  it('가져온 문단이 제목 크기를 물려받지 않는다', () => {
+    const { data } = withDefaults('<p>본문입니다</p>');
+    const text = allBlocks(data).find((b) => b.type === 'Text')!;
+    expect((text.props.style as { typography?: unknown }).typography).toBeUndefined();
+    expect(text.props.tag).toBe('p');
+  });
+
+  it('그림만 감싼 링크도 그림을 잃지 않는다', () => {
+    const { data } = run('<a class="logo" href="/"><img src="/logo.svg" alt="로고"></a>');
+    const img = allBlocks(data).find((b) => b.type === 'Image');
+    expect(img?.props.src).toBe('/logo.svg');
+  });
+});

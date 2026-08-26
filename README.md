@@ -318,7 +318,7 @@ DeepL 은 **태국어·베트남어를 지원하지 않아**(`src/lib/i18n.ts` �
 | 폰트 | **Google Fonts** (`next/font`) | Noto Sans KR/Thai/JP/SC, Inter |
 | DB | **Postgres** (`pg`) | 페이지·이벤트·문의 저장 |
 | 압축 | **JSZip** | 정적 HTML 내보내기 묶음 |
-| 테스트 | **Vitest** | 핵심 로직 309개 테스트 |
+| 테스트 | **Vitest** | 핵심 로직 312개 테스트 |
 
 ### 직접 만들지 않고 라이브러리를 쓴 이유
 
@@ -335,7 +335,7 @@ DeepL 은 **태국어·베트남어를 지원하지 않아**(`src/lib/i18n.ts` �
 ## 테스트
 
 ```bash
-npm test              # 309개 테스트
+npm test              # 312개 테스트
 npm run test:watch
 npm run a11y          # 실행 중인 사이트에 axe-core (WCAG 2.1 AA) — 위반 시 종료 코드 1
 npm run canvas-check  # 에디터 캔버스가 편집 중에 다시 서지 않는지 (아래 참고)

@@ -48,9 +48,14 @@ export function SitePreview({
   const [nonce, setNonce] = React.useState(0);
 
   const shown = DEVICES.find((d) => d.key === device)!;
-  /* ?site=1 — 운영자가 첫 화면으로 들어오면 에디터로 보내는 규칙을 빠져나간다.
-     이게 없으면 홈 미리보기가 미리보기 안에서 에디터를 열어 버린다. */
-  const src = `${path}${path.includes('?') ? '&' : '?'}site=1&lang=${locale}&_=${nonce}`;
+  /* ?preview=1 — '에디터 안에서 보는 중' 이라는 표시.
+     첫 화면으로 들어오면 에디터로 보내는 규칙을 빠져나가고(없으면 홈
+     미리보기가 미리보기 안에서 에디터를 연다), 방문 분석을 끄고, 내부 링크를
+     미리보기 안에 가둔다. */
+  const src = `${path}${path.includes('?') ? '&' : '?'}preview=1&lang=${locale}&_=${nonce}`;
+  /* 새 탭으로 여는 것은 '미리보기를 벗어나 진짜 화면을 본다' 는 뜻이다 —
+     preview=1 을 물려주면 분석이 꺼진 채로 열리고 주소창에도 그 표시가 남는다. */
+  const realUrl = `${path}${path.includes('?') ? '&' : '?'}site=1&lang=${locale}`;
 
   /* Esc 로 닫는다 — 전체 화면을 덮으므로 나가는 길이 분명해야 한다 */
   React.useEffect(() => {
@@ -104,8 +109,8 @@ export function SitePreview({
         <button type="button" onClick={() => setNonce((n) => n + 1)} style={chip} title="다시 불러오기">
           새로 고침
         </button>
-        <a href={src} target="_blank" rel="noreferrer" style={{ ...chip, textDecoration: 'none' }}>
-          새 탭
+        <a href={realUrl} target="_blank" rel="noreferrer" title="공개 화면 그대로 새 탭에서 엽니다" style={{ ...chip, textDecoration: 'none' }}>
+          새 탭 ↗
         </a>
         <button type="button" onClick={onClose} style={{ ...chip, ...chipClose }} title="닫기 (Esc)">
           ✕ 닫기

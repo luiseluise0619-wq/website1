@@ -21,7 +21,14 @@ interface Params {
   params: { slug?: string[] };
   /* hreflang 이 ?lang= 주소를 알리므로 서버도 이 값을 읽어야 한다.
      Next 는 같은 키가 반복되면 배열로 넘기므로 두 형태를 모두 받는다. */
-  searchParams?: { lang?: string | string[]; locale?: string | string[]; site?: string | string[] };
+  searchParams?: {
+    lang?: string | string[];
+    locale?: string | string[];
+    /** 운영자가 공개 화면을 그대로 보려는 표시 (에디터로 넘기지 않는다) */
+    site?: string | string[];
+    /** 에디터 [미리보기] 안에서 그려지는 중 — 분석을 끄고 링크를 가둔다 */
+    preview?: string | string[];
+  };
 }
 
 /** 반복 파라미터(?lang=en&lang=ko)는 첫 값만 쓴다 */
@@ -97,8 +104,16 @@ export default async function DynamicPage({ params, searchParams }: Params) {
      방문자에게는 아무 영향이 없고(쿠키가 없으니 그대로 사이트),
      주인이 공개 화면을 보고 싶을 때는 ?site=1 로 빠져나갈 수 있다
      (에디터의 [사이트 보기] 가 그 주소를 쓴다). */
+  /* 두 표시는 하는 일이 다르다 — 섞으면 안 된다.
+       site=1    : 운영자가 공개 화면을 그대로 본다. 진짜 방문과 똑같아야 하므로
+                   분석도 켜져 있고 링크도 손대지 않는다.
+       preview=1 : 에디터 [미리보기] 안이다. 분석을 끄고(주인이 자기 지표를
+                   오염시키지 않게) 내부 링크를 미리보기 안에 가둔다.
+     예전에는 site=1 하나가 둘을 겸해서, [새 탭 ↗] 으로 연 공개 화면이
+     조용히 미리보기 모드로 열리고 주소창에도 그 표시가 남았다. */
   const siteMode = Boolean(firstParam(searchParams?.site));
-  if (path === '/' && !siteMode && !headers().get(EXPORT_HEADER) && isAdminRequest()) {
+  const previewMode = Boolean(firstParam(searchParams?.preview));
+  if (path === '/' && !siteMode && !previewMode && !headers().get(EXPORT_HEADER) && isAdminRequest()) {
     redirect('/admin/editor');
   }
 
@@ -131,10 +146,5 @@ export default async function DynamicPage({ params, searchParams }: Params) {
     redirect(`${page.path}?lang=${locale}`);
   }
 
-  /* ?site=1 은 '지금 이 화면은 미리보기' 라는 뜻이기도 하다.
-     · 이 표시가 링크를 타고 이어져야 한다. 안 그러면 미리보기 안에서 로고를
-       누르는 순간 홈으로 갔다가 에디터로 튕겨, 미리보기 안에 에디터가 열린다.
-     · 방문 분석도 끈다. 주인이 자기 화면을 확인할 때마다 page_view 와 스크롤
-       이벤트가 쌓이면 자기 지표를 자기가 오염시킨다. */
-  return <PageRenderer page={page} initialLocale={locale} previewMode={siteMode} analytics={!siteMode} />;
+  return <PageRenderer page={page} initialLocale={locale} previewMode={previewMode} analytics={!previewMode} />;
 }

@@ -26,6 +26,15 @@ import type { LocaleCode, PuckBlock, PuckPageData } from '@/types/schema';
 export interface ImportOptions {
   /** 가져온 문구가 어느 언어인지 — 번역 원문이 된다 */
   locale?: LocaleCode;
+  /**
+   * 블록 종류별 기본 props (puckConfig 의 defaultProps).
+   *
+   * Puck 은 에디터에서만 기본값을 채워 넣고 <Render> 에서는 채우지 않는다.
+   * 그래서 기본값 없이 만든 블록은 캔버스에서는 멀쩡한데 공개 사이트에서는
+   * 서식이 빠진 채 나온다(가져온 문단이 캔버스에서만 36px 굵게 보이는 등).
+   * 만들 때 함께 박아 두면 두 화면이 같아진다.
+   */
+  defaults?: Record<string, Record<string, unknown>>;
   /** 테스트·서버에서 DOM 을 주입하기 위한 구멍 (기본: 브라우저 DOMParser) */
   parseDocument?: (html: string) => Document;
 }
@@ -110,6 +119,23 @@ export function htmlToPage(html: string, options: ImportOptions = {}): ImportRes
   let counter = 0;
   const nextId = () => `imp${(counter += 1)}`;
 
+  /** 종류별 기본값을 깔고 그 위에 우리가 읽어낸 값을 얹는다 */
+  const make = (type: string, props: Record<string, unknown>): PuckBlock => ({
+    type,
+    props: { ...(options.defaults?.[type] ?? {}), ...props } as PuckBlock['props'],
+  });
+
+  /**
+   * 글 블록.
+   *
+   * style 을 반드시 직접 준다. Text 의 기본값은 '새로 놓는 제목' 을 위한 것이라
+   * 36px 굵게가 박혀 있어서, 그대로 두면 가져온 본문 문단이 전부 제목 크기로
+   * 나온다. 비워 두면 제목 태그는 TextBlock 의 태그별 기본 서식을 따르고,
+   * 본문은 페이지 기본 글꼴을 그대로 쓴다 — 원본에 가장 가깝다.
+   */
+  const textBlock = (tag: string, value: string, extra: Record<string, unknown> = {}) =>
+    make('Text', { id: nextId(), tag, html: localized(value, locale), style: { color: '#111827' }, ...extra });
+
   const notes: string[] = [];
   let embedded = 0;
   let images = 0;
@@ -125,20 +151,14 @@ export function htmlToPage(html: string, options: ImportOptions = {}): ImportRes
       const value = text(el);
       if (!value) return null;
       blocks++;
-      return {
-        type: 'Text',
-        props: { id: nextId(), tag: tag.toLowerCase(), html: localized(sanitizeHtml(el.innerHTML.trim()), locale), name: value.slice(0, 40) },
-      };
+      return textBlock(tag.toLowerCase(), sanitizeHtml(el.innerHTML.trim()), { name: value.slice(0, 40) });
     }
 
     if (RICH_TAGS.has(tag)) {
       const value = text(el);
       if (!value) return null;
       blocks++;
-      return {
-        type: 'Text',
-        props: { id: nextId(), tag: 'p', html: localized(sanitizeHtml(el.innerHTML.trim()), locale) },
-      };
+      return textBlock('p', sanitizeHtml(el.innerHTML.trim()));
     }
 
     if (tag === 'IMG') {
@@ -146,47 +166,46 @@ export function htmlToPage(html: string, options: ImportOptions = {}): ImportRes
       if (!src) return null;
       images++;
       blocks++;
-      return {
-        type: 'Image',
-        props: {
-          id: nextId(),
-          src,
-          alt: localized(el.getAttribute('alt') ?? '', locale),
-          style: { width: '100%' },
-        },
-      };
+      return make('Image', {
+        id: nextId(),
+        src,
+        alt: localized(el.getAttribute('alt') ?? '', locale),
+        style: { width: '100%' },
+      });
     }
 
     if (tag === 'A') {
       const href = el.getAttribute('href') ?? '';
       const label = text(el);
-      if (!label) return null;
+      /* 글자 없이 그림만 감싼 링크(로고·배너)가 흔하다. 여기서 null 을
+         돌려주면 그 그림이 통째로 사라진다 — 안의 그림을 꺼내 온다. */
+      if (!label) {
+        const img = el.querySelector('img');
+        return img ? toBlock(img) : null;
+      }
       blocks++;
       /* 버튼처럼 생긴 링크만 Button 으로. 본문 속 링크까지 버튼으로 만들면
          문단이 버튼 더미로 쪼개져 원문을 알아볼 수 없게 된다. */
       if (looksLikeButton(el)) {
-        return {
-          type: 'Button',
-          props: {
-            id: nextId(),
-            label: localized(label, locale),
-            action: href ? { type: 'navigate', value: href } : { type: 'none' },
-          },
-        };
+        return make('Button', {
+          id: nextId(),
+          label: localized(label, locale),
+          action: href ? { type: 'navigate', value: href } : { type: 'none' },
+        });
       }
-      return { type: 'Text', props: { id: nextId(), tag: 'p', html: localized(sanitizeHtml(el.outerHTML.trim()), locale) } };
+      return textBlock('p', sanitizeHtml(el.outerHTML.trim()));
     }
 
     if (tag === 'HR') {
       blocks++;
-      return { type: 'Divider', props: { id: nextId(), orientation: 'horizontal' } };
+      return make('Divider', { id: nextId(), orientation: 'horizontal' });
     }
 
     if (tag === 'IFRAME') {
       const video = videoProps(el);
       if (video) {
         blocks++;
-        return { type: 'Video', props: { id: nextId(), ...video, controls: true } };
+        return make('Video', { id: nextId(), ...video, controls: true });
       }
       return null; // 그 밖의 iframe 은 Embed 로
     }
@@ -219,7 +238,7 @@ export function htmlToPage(html: string, options: ImportOptions = {}): ImportRes
     if (kept && keptSomething) {
       embedded++;
       blocks++;
-      return { type: 'Embed', props: { id: nextId(), html: safe } };
+      return make('Embed', { id: nextId(), html: safe });
     }
     if (hasMedia && !text(el).length) {
       notes.push('그림·영상 일부는 안전 목록에 없어 가져오지 못했습니다 (svg 등).');
@@ -232,7 +251,7 @@ export function htmlToPage(html: string, options: ImportOptions = {}): ImportRes
     const inner = text(el);
     if (!inner) return null;
     blocks++;
-    return { type: 'Text', props: { id: nextId(), tag: 'p', html: localized(sanitizeHtml(inner), locale) } };
+    return textBlock('p', sanitizeHtml(inner));
   };
 
   /** 자식들을 훑어 블록 목록을 만든다 (껍데기는 뚫고 들어간다) */
@@ -246,7 +265,7 @@ export function htmlToPage(html: string, options: ImportOptions = {}): ImportRes
         const value = (node.textContent ?? '').replace(/\s+/g, ' ').trim();
         if (!value) continue;
         blocks++;
-        out.push({ type: 'Text', props: { id: nextId(), tag: 'p', html: localized(sanitizeHtml(value), locale) } });
+        out.push(textBlock('p', sanitizeHtml(value)));
         continue;
       }
       if (node.nodeType !== 1 /* ELEMENT_NODE */) continue;
@@ -290,15 +309,12 @@ export function htmlToPage(html: string, options: ImportOptions = {}): ImportRes
   const containerId = nextId();
 
   zones[`${sectionId}:content`] = [
-    {
-      type: 'Container',
-      props: {
-        id: containerId,
-        name: '가져온 내용',
-        layoutMode: 'flex',
-        style: { display: 'flex', flexDirection: 'column', gap: 16, width: '100%' },
-      },
-    },
+    make('Container', {
+      id: containerId,
+      name: '가져온 내용',
+      layoutMode: 'flex',
+      style: { display: 'flex', flexDirection: 'column', gap: 16, width: '100%' },
+    }),
   ];
   /* Container 의 자식 존 이름은 'items' 다 (Section 만 'content').
      'content' 로 넣으면 저장은 되지만 화면에는 아무것도 나오지 않는다 —
@@ -308,10 +324,11 @@ export function htmlToPage(html: string, options: ImportOptions = {}): ImportRes
   const data: PuckPageData = {
     root: { props: {} },
     content: [
-      {
-        type: 'Section',
-        props: { id: sectionId, name: '가져온 HTML', style: { padding: { top: 48, bottom: 48, left: 24, right: 24 } } },
-      },
+      make('Section', {
+        id: sectionId,
+        name: '가져온 HTML',
+        style: { padding: { top: 48, bottom: 48, left: 24, right: 24 } },
+      }),
     ],
     zones,
   };
