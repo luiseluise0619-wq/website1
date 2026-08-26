@@ -124,6 +124,17 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
     return { id: props.id, placement: props.placement };
   }, [pickedId, selectedItem, getItemById, appState.data]);
 
+  /**
+   * 선택한 요소가 자유 배치인가, 흐름 배치인가.
+   *
+   * 둘은 '크기를 어디에 적어야 하는지'가 다르다.
+   *   자유 배치 → placement.width/height (좌표와 한 몸)
+   *   흐름 배치 → style.width/height     (좌표는 흐름이 정한다)
+   * 예전에는 자유 배치만 상자를 그렸다. 그래서 섹션 안에 평범하게 놓인
+   * 캐러셀·이미지는 아무리 눌러도 손잡이가 나오지 않아 크기를 바꿀 수 없었다.
+   */
+  const [isFree, setIsFree] = React.useState(true);
+
   /** iframe 안의 위치들을 화면 좌표로 환산 */
   const measure = React.useCallback(() => {
     const geo = readGeometry(containerRef.current);
@@ -158,9 +169,12 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
       ),
     );
 
+    /* [data-free="true"] 로 좁히면 안 된다 — 흐름 배치 요소가 통째로 걸러져
+       손잡이가 아예 나오지 않는다(캐러셀이 안 늘어나던 이유). */
     const node = selected
-      ? doc.querySelector<HTMLElement>(`[data-puck-id="${CSS.escape(selected.id)}"][data-free="true"]`)
+      ? doc.querySelector<HTMLElement>(`[data-puck-id="${CSS.escape(selected.id)}"]`)
       : null;
+    setIsFree(node?.dataset.free === 'true');
     setBox(node ? { ...toScreen(node.getBoundingClientRect()), scale } : null);
   }, [selected, containerRef]);
 
@@ -210,10 +224,25 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
 
   /** placement 갱신을 Puck 상태에 반영 */
   const commitFor = React.useCallback(
-    (id: string, next: Partial<FreePlacement>, opts: { recordHistory?: boolean } = {}) => {
+    (id: string, next: Partial<FreePlacement>, opts: { recordHistory?: boolean; free?: boolean } = {}) => {
       const selector = getSelectorForId(id);
       const item = getItemById(id);
       if (!selector || !item) return;
+
+      /* 크기를 어디에 적을지는 배치 방식이 정한다.
+         흐름 배치 요소에 placement 를 쓰면 아무 일도 일어나지 않는다 —
+         그 값은 자유 캔버스 안에서만 CSS 로 옮겨진다(blockCSS 의 free 분기). */
+      const props = item.props as { placement?: FreePlacement; style?: Record<string, unknown> };
+      const nextProps = opts.free
+        ? { ...item.props, placement: { ...props.placement, ...next } }
+        : {
+            ...item.props,
+            style: {
+              ...props.style,
+              ...(next.width !== undefined ? { width: next.width } : null),
+              ...(next.height !== undefined ? { height: next.height } : null),
+            },
+          };
 
       dispatch({
         type: 'replace',
@@ -223,13 +252,7 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
            수십 개가 쌓여 Ctrl+Z 한 번이 몇 픽셀만 되돌린다. 손을 뗄 때 한 번만
            기록해야 '한 번의 드래그 = 한 번의 되돌리기'가 된다. */
         recordHistory: opts.recordHistory ?? true,
-        data: {
-          ...item,
-          props: {
-            ...item.props,
-            placement: { ...(item.props as { placement?: FreePlacement }).placement, ...next },
-          },
-        },
+        data: { ...item, props: nextProps },
       });
     },
     [dispatch, getSelectorForId, getItemById],
@@ -237,9 +260,9 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
 
   const commit = React.useCallback(
     (next: Partial<FreePlacement>) => {
-      if (selected) commitFor(selected.id, next);
+      if (selected) commitFor(selected.id, next, { free: isFree });
     },
-    [selected, commitFor],
+    [selected, commitFor, isFree],
   );
 
   /**
@@ -297,6 +320,7 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
     e: React.PointerEvent,
     target: { id: string; placement?: FreePlacement },
     startBox: { width: number; height: number; scale: number },
+    free = true,
   ) => {
     setMode(kind);
 
@@ -312,7 +336,7 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
     let last: Partial<FreePlacement> | null = null;
     const commitTo = (next: Partial<FreePlacement>) => {
       last = next;
-      commitFor(target.id, next, { recordHistory: false });
+      commitFor(target.id, next, { recordHistory: false, free });
     };
     const round = (v: number) => (SNAP > 1 ? Math.round(v / SNAP) * SNAP : Math.round(v));
 
@@ -322,6 +346,10 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
       const dy = (ev.clientY - startY) / scale;
 
       if (kind === 'move') {
+        /* 흐름 배치는 위치를 흐름이 정한다 — 끌어도 옮길 것이 없다.
+           여기서 x/y 를 쓰면 저장은 되는데 화면은 그대로라, 사용자는
+           '끌었는데 안 움직인다'만 겪는다. */
+        if (!free) return;
         commitTo({ x: round(origin.x + dx), y: round(origin.y + dy) });
         return;
       }
@@ -333,12 +361,13 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
       if (kind.includes('w')) {
         const width = Math.max(MIN_SIZE, round(origin.width - dx));
         next.width = width;
-        next.x = round(origin.x + (origin.width - width));
+        // 흐름 배치에는 옮길 좌표가 없다 — 폭만 바뀐다
+        if (free) next.x = round(origin.x + (origin.width - width));
       }
       if (kind.includes('n')) {
         const height = Math.max(MIN_SIZE, round(origin.height - dy));
         next.height = height;
-        next.y = round(origin.y + (origin.height - height));
+        if (free) next.y = round(origin.y + (origin.height - height));
       }
       commitTo(next);
     };
@@ -360,7 +389,7 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
     if (!selected || !box) return;
     e.preventDefault();
     e.stopPropagation();
-    runDrag(kind, e, selected, box);
+    runDrag(kind, e, selected, box, isFree);
   };
 
   /** 캔버스에서 요소를 처음 누른 순간 — 선택과 드래그를 한 번에 시작한다 */
@@ -642,16 +671,29 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
           height: box.height,
           border: '2px solid #3b82f6',
           borderRadius: 2,
-          cursor: mode === 'move' ? 'grabbing' : 'grab',
+          /* 흐름 배치는 끌어서 옮길 수 없다 — 잡을 수 있는 것처럼 보이면 안 된다 */
+          cursor: !isFree ? 'default' : mode === 'move' ? 'grabbing' : 'grab',
           pointerEvents: 'auto',
           background: mode === 'move' ? 'rgba(59,130,246,.08)' : 'transparent',
         }}
       >
         <span style={badge}>
-          {Math.round(Number(selected.placement?.x ?? 0))}, {Math.round(Number(selected.placement?.y ?? 0))}
-          <span style={{ opacity: 0.75, fontWeight: 500, marginLeft: 6 }}>
-            방향키 이동 · Del·Backspace 삭제 · Esc 해제
-          </span>
+          {isFree ? (
+            <>
+              {Math.round(Number(selected.placement?.x ?? 0))}, {Math.round(Number(selected.placement?.y ?? 0))}
+              <span style={{ opacity: 0.75, fontWeight: 500, marginLeft: 6 }}>
+                방향키 이동 · Del·Backspace 삭제 · Esc 해제
+              </span>
+            </>
+          ) : (
+            <>
+              {Math.round(box.width / (box.scale || 1))} × {Math.round(box.height / (box.scale || 1))}
+              {/* 흐름 배치는 위치를 흐름이 정한다 — 할 수 있는 일만 적는다 */}
+              <span style={{ opacity: 0.75, fontWeight: 500, marginLeft: 6 }}>
+                모서리를 끌어 크기 조절 · Del·Backspace 삭제 · Esc 해제
+              </span>
+            </>
+          )}
         </span>
 
         {/* 눌러서 지우기.
@@ -676,7 +718,11 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
           ✕
         </button>
 
-        {HANDLES.map((h) => (
+        {/* 흐름 배치는 위치를 흐름이 정한다. 왼쪽·위쪽 손잡이를 끌면 반대편이
+            고정된 채 폭·높이만 바뀌어서, 잡은 곳은 가만히 있고 반대쪽이
+            움직이는 것처럼 보인다 — 잡히지 않는 손잡이는 아예 내놓지 않는다.
+            오른쪽·아래·오른쪽아래만 남긴다. */}
+        {(isFree ? HANDLES : HANDLES.filter((h) => h.key === 'e' || h.key === 's' || h.key === 'se')).map((h) => (
           <span
             key={h.key}
             data-ks-handle={h.key}

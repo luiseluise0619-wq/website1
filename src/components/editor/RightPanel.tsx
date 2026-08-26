@@ -3,6 +3,7 @@
 import React from 'react';
 import { usePuck } from '@puckeditor/core';
 import { SeoPanel } from './SeoPanel';
+import { SelectionPath } from './SelectionPath';
 import { FieldRenderer } from './FieldRenderer';
 import { DropOffPanel } from '@/components/analytics/DropOffPanel';
 import { useEditorStore, type RightTab } from '@/store/editorStore';
@@ -36,6 +37,11 @@ export function RightPanel({ children, isLoading, hasSelection, analytics, tab, 
 
   return (
     <div style={shell}>
+      {/* 지금 무엇을 고르고 있는지, 그리고 그 바깥으로 올라가는 길.
+          캔버스 클릭은 가장 안쪽을 고르므로 이것이 없으면 캐러셀 같은
+          '담는 블록'에는 닿을 방법이 없다. */}
+      <SelectionPath />
+
       <div style={tabBar}>
         {(
           [
