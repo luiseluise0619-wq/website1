@@ -98,13 +98,22 @@ export function LayerTree() {
 
   /* 캔버스가 바뀔 때마다 다시 읽는다. 캔버스는 이 패널보다 늦게 준비될 수
      있으므로 준비될 때까지 재시도한다(한 번만 읽으면 첫 화면이 빈 채로 굳는다). */
+  const signature = React.useRef('');
   React.useEffect(() => {
     let stopped = false;
     const read = () => {
       if (stopped) return;
       const doc = document.querySelector<HTMLIFrameElement>('iframe#preview-frame')?.contentDocument;
       if (!doc?.body) return;
-      setLayers(readLayers(doc));
+      const next = readLayers(doc);
+
+      /* 바뀐 게 없으면 상태를 건드리지 않는다.
+         매번 새 배열을 넣으면 캔버스가 그대로여도 에디터 전체가 0.8초마다
+         다시 그려진다 — 화면이 계속 들썩이고, 편집 중에도 쓸데없이 무거워진다. */
+      const sig = next.length + '|' + JSON.stringify(next);
+      if (sig === signature.current) return;
+      signature.current = sig;
+      setLayers(next);
     };
     read();
     const timer = setInterval(read, 800);

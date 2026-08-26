@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "a11y": "node scripts/a11y.mjs",
     "canvas-check": "node scripts/canvas-stability.mjs",
-    "export-check": "node scripts/export-check.mjs"
+    "export-check": "node scripts/export-check.mjs",
+    "sim": "node scripts/editor-sim.mjs"
   },
   "dependencies": {
     "@puckeditor/core": "^0.23.0",
