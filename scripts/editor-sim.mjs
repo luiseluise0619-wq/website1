@@ -137,6 +137,16 @@ await step('[＋ 추가] → 새 페이지', async () => {
   await page.waitForTimeout(800);
   await page.locator('input[placeholder*="THAILAND"]').fill(PAGE_TITLE);
   await page.waitForTimeout(600);
+  /* 이 시뮬레이션은 '섹션으로 쌓는' 페이지를 검사한다. 기본값은 칸 없는
+     종이 한 장이므로(그쪽은 npm run paper-check 가 본다) 여기서는 섹션
+     템플릿을 골라 준다. 대화상자는 두 번 렌더되니 보이는 쪽만 잡는다. */
+  /* 카드는 대화상자 안에서 스크롤 밖에 있을 수 있다 — 좌표를 거치지 않고
+     요소에 직접 클릭을 보낸다(force 로도 덮개에 가로막히는 일이 있었다). */
+  const tpl = page.locator('[data-template-id="hero-intro"]');
+  await tpl.evaluate((el) => el.click());
+  await page.waitForTimeout(300);
+  if ((await tpl.getAttribute('aria-pressed')) !== 'true') throw new Error('템플릿이 안 골라짐');
+  await page.waitForTimeout(400);
   await page.locator('form button[type=submit], form button:has-text("만들기")').last().click();
   await page.waitForTimeout(3000);
   /* 주소는 상단 바가 '보여 주기만' 한다(고치는 곳은 우측 [페이지] 탭) —

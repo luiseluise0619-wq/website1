@@ -240,16 +240,32 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
          흐름 배치 요소에 placement 를 쓰면 아무 일도 일어나지 않는다 —
          그 값은 자유 캔버스 안에서만 CSS 로 옮겨진다(blockCSS 의 free 분기). */
       const props = item.props as { placement?: FreePlacement; style?: Record<string, unknown> };
+
+      /* 종이(자유 캔버스)의 높이는 style 이 아니라 height 속성이 쥔다 —
+         블록이 `Math.max(height, 내용높이)` 로 자기 높이를 직접 정하기 때문에,
+         style.height 에 적으면 그 값이 덮여 아무 일도 일어나지 않는다.
+         손잡이로 끈 값이 곧 '종이의 최소 길이'가 된다(내용이 더 길면 더 늘어난다). */
+      const isPaper = item.type === 'FreeCanvas';
+
       const nextProps = opts.free
         ? { ...item.props, placement: { ...props.placement, ...next } }
-        : {
-            ...item.props,
-            style: {
-              ...props.style,
-              ...(next.width !== undefined ? { width: next.width } : null),
-              ...(next.height !== undefined ? { height: next.height } : null),
-            },
-          };
+        : isPaper
+          ? {
+              ...item.props,
+              ...(typeof next.height === 'number' ? { height: Math.round(next.height) } : null),
+              style: {
+                ...props.style,
+                ...(next.width !== undefined ? { width: next.width } : null),
+              },
+            }
+          : {
+              ...item.props,
+              style: {
+                ...props.style,
+                ...(next.width !== undefined ? { width: next.width } : null),
+                ...(next.height !== undefined ? { height: next.height } : null),
+              },
+            };
 
       dispatch({
         type: 'replace',
@@ -279,44 +295,70 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
    * elementFromPoint 로 직접 찾고 선택을 지정한다.
    */
   const selectAtPoint = React.useCallback(
-    (clientX: number, clientY: number): string | null => {
+    (clientX: number, clientY: number): { id: string; free: boolean } | null => {
       const geo = readGeometry(containerRef.current);
       if (!geo) return null;
       const frameRect = geo.frame.getBoundingClientRect();
       const ix = (clientX - frameRect.left) / geo.scale;
       const iy = (clientY - frameRect.top) / geo.scale;
 
+      const hits = (selector: string) =>
+        Array.from(geo.doc.querySelectorAll<HTMLElement>(selector))
+          .map((node) => ({ node, rect: node.getBoundingClientRect() }))
+          .filter(({ rect }) => ix >= rect.left && ix <= rect.right && iy >= rect.top && iy <= rect.bottom);
+
       /* DOM 히트 테스트는 쓸 수 없다: Puck 은 캔버스 안의 컴포넌트에
          pointer-events:none 을 걸어 두기 때문에(자체 오버레이가 상호작용을 담당)
          elementFromPoint 가 우리 요소를 절대 돌려주지 않는다.
-         그래서 자유 배치 요소들의 사각형을 직접 재서 기하학적으로 판정한다. */
-      const candidates = Array.from(
-        geo.doc.querySelectorAll<HTMLElement>('[data-free="true"][data-puck-id]'),
-      )
-        .map((node) => ({ node, rect: node.getBoundingClientRect() }))
-        .filter(({ rect }) => ix >= rect.left && ix <= rect.right && iy >= rect.top && iy <= rect.bottom);
+         그래서 사각형을 직접 재서 기하학적으로 판정한다. */
+      const free = hits('[data-free="true"][data-puck-id]');
 
-      if (!candidates.length) return null;
+      let node: HTMLElement | null = null;
+      let isFree = false;
 
-      /* 겹쳐 있으면 z-index 가 큰 것, 같으면 나중에 그려진 것이 위에 있다 */
-      const top = candidates.reduce((best, current) => {
-        const z = (el: HTMLElement) => Number(geo.doc.defaultView?.getComputedStyle(el).zIndex) || 0;
-        return z(current.node) >= z(best.node) ? current : best;
-      });
+      if (free.length) {
+        /* 겹쳐 있으면 z-index 가 큰 것, 같으면 나중에 그려진 것이 위에 있다 */
+        const top = free.reduce((best, current) => {
+          const z = (el: HTMLElement) => Number(geo.doc.defaultView?.getComputedStyle(el).zIndex) || 0;
+          return z(current.node) >= z(best.node) ? current : best;
+        });
+        node = top.node;
+        isFree = true;
+      } else {
+        /* 빈 바탕을 눌렀다 — 예전에는 여기서 선택을 '풀었다'. 그래서 종이
+           (자유 캔버스)와 그것을 담은 섹션은 눌러서 고를 방법이 아예 없었고,
+           고르지 못하니 크기 손잡이도 붙지 않았다. "크기조절이 안 된다"의
+           정체가 이것이다.
+           디자인 도구가 하는 대로, 바탕을 누르면 그 바탕이 잡힌다.
+           가장 안쪽(= 가장 작은) 것을 고른다 — 섹션보다 그 안의 종이가 먼저다. */
+        const shells = hits('[data-puck-id]');
+        if (!shells.length) return null;
+        node = shells.reduce((best, current) =>
+          current.rect.width * current.rect.height <= best.rect.width * best.rect.height ? current : best,
+        ).node;
+      }
 
-      const id = top.node.dataset.puckId;
+      const id = node?.dataset.puckId;
       if (!id) return null;
 
+      /* 선택은 우리가 쥔다 — 자유 배치든 흐름 배치든.
+         한때 흐름 배치는 Puck 에 맡겼는데, Puck 의 setUi 는 중첩 존 안의 항목을
+         받아주지 않는다(getSelectorForId 는 selector 를 돌려주지만 itemSelector 에
+         넣으면 null 로 정규화된다). 섹션 안의 자유 캔버스가 딱 그 경우라,
+         맡긴 쪽에서는 아무 일도 일어나지 않았다 — 눌러도 안 잡히고,
+         안 잡히니 크기 손잡이도 안 붙었다.
+         '자유 배치인가'는 이 값이 아니라 DOM 의 data-free 로 판정하므로
+         (measure 참고) 크기 반영은 각자 맞는 규칙으로 간다. */
       setPickedId(id);
-      /* Puck 인스펙터도 따라오면 좋지만, 중첩 항목은 무시될 수 있다 —
-         실패해도 우리 레이어의 선택은 유지된다. */
+      /* Puck 인스펙터도 따라오면 좋다 — 최상위 항목은 이걸로 하이라이트된다.
+         중첩이라 무시돼도 우리 선택은 그대로다. */
       const selector = getSelectorForId(id);
       if (selector) {
         dispatch({ type: 'setUi', ui: { itemSelector: { index: selector.index, zone: selector.zone } } });
       }
-      return id;
+      return { id, free: isFree };
     },
-    [containerRef, dispatch, getSelectorForId],
+    [containerRef, dispatch, getSelectorForId, setPickedId],
   );
 
   /* 드래그 — 부모 문서에서 발생하므로 React 이벤트로 충분하다.
@@ -494,9 +536,100 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
     };
   }, [selected, commit, dispatch, getSelectorForId, setPickedId, containerRef, removeSelected]);
 
+  /* -------------------------------------------------------------------------
+   * 끌어다 놓으면 '놓은 자리'에 놓인다
+   * -------------------------------------------------------------------------
+   * 블록 목록에서 종이 위로 끌어다 놓으면, 새 요소는 placement 가 없는 채로
+   * 들어온다. placement 가 없으면 좌표가 0,0 이라 무엇을 몇 개 넣든 전부 왼쪽
+   * 맨 위 한 자리에 겹쳐 쌓였다 — 놓은 자리와 아무 상관이 없으니, 매번 집어서
+   * 다시 끌어야 했다.
+   *
+   * 마우스가 마지막으로 있던 자리를 기억해 두었다가, 좌표 없이 들어온 자유
+   * 배치 요소에게 그 자리를 준다.
+   * ---------------------------------------------------------------------- */
+  const pointerRef = React.useRef<{ x: number; y: number } | null>(null);
+  React.useEffect(() => {
+    const track = (e: PointerEvent) => {
+      pointerRef.current = { x: e.clientX, y: e.clientY };
+    };
+    document.addEventListener('pointermove', track, { passive: true });
+    return () => document.removeEventListener('pointermove', track);
+  }, []);
+
+  const placeNewcomers = React.useCallback(() => {
+    const geo = readGeometry(containerRef.current);
+    if (!geo) return;
+
+    for (const node of Array.from(
+      geo.doc.querySelectorAll<HTMLElement>('[data-free="true"][data-puck-id]'),
+    )) {
+      const id = node.dataset.puckId;
+      if (!id) continue;
+      const item = getItemById(id);
+      if (!item) continue;
+      if ((item.props as { placement?: FreePlacement }).placement) continue;
+
+      /* 놓은 자리를 캔버스 안 좌표로 되돌린다. 마우스가 캔버스 밖이면
+         (키보드로 넣었거나 붙여넣기) 그 종이의 왼쪽 위 여백에 둔다. */
+      const canvas = node.closest<HTMLElement>('[data-free-canvas="true"]');
+      const canvasRect = canvas?.getBoundingClientRect();
+      const frameRect = geo.frame.getBoundingClientRect();
+      const p = pointerRef.current;
+
+      let x = 40;
+      let y = 40;
+      if (p && canvasRect) {
+        const ix = (p.x - frameRect.left) / geo.scale;
+        const iy = (p.y - frameRect.top) / geo.scale;
+        if (ix >= canvasRect.left && ix <= canvasRect.right && iy >= canvasRect.top && iy <= canvasRect.bottom) {
+          x = Math.max(0, Math.round(ix - canvasRect.left));
+          y = Math.max(0, Math.round(iy - canvasRect.top));
+        }
+      }
+      commitFor(id, { x, y }, { free: true });
+    }
+  }, [containerRef, getItemById, commitFor]);
+
+  /* 캔버스가 바뀔 때마다 좌표 없는 새 식구를 찾아 자리를 준다.
+     한 박자 늦춘다 — Puck 이 삽입을 끝내기 전에 읽으면 DOM 에 아직 없다. */
+  React.useEffect(() => {
+    const timer = setTimeout(placeNewcomers, 120);
+    return () => clearTimeout(timer);
+  }, [appState.data, placeNewcomers]);
+
   /* 좌표를 containerRef 기준으로 계산하므로, 실제 DOM 도 그 컨테이너 안에 있어야
      한다. Puck 내부 어딘가에 렌더되면 offsetParent 가 달라져 위치가 어긋난다. */
   const host = containerRef.current;
+
+  /**
+   * 이 페이지가 '종이 한 장'인가.
+   * 맨 위가 자유 캔버스 하나뿐이면 섹션이라는 칸 개념이 없는 페이지다 —
+   * 무엇이든 원하는 자리에 놓고, 모자라면 종이를 늘린다.
+   */
+  const paperId = React.useMemo(() => {
+    const content = (appState.data as { content?: Array<{ type: string; props?: { id?: string } }> }).content;
+    if (!content || content.length !== 1) return null;
+    const only = content[0];
+    return only.type === 'FreeCanvas' ? only.props?.id ?? null : null;
+  }, [appState.data]);
+
+  /* 상단 [＋ 추가] 가 '섹션 추가'를 감출 수 있게 알려 준다 */
+  const setPaperPage = useEditorStore((s) => s.setPaperPage);
+  React.useEffect(() => {
+    setPaperPage(Boolean(paperId));
+  }, [paperId, setPaperPage]);
+
+  /** 종이를 아래로 늘린다 — 지금 길이에서 한 화면만큼 더 */
+  const growPaper = (id: string) => {
+    const item = getItemById(id);
+    if (!item) return;
+    const doc = readGeometry(containerRef.current)?.doc;
+    const node = doc?.querySelector<HTMLElement>(`[data-puck-id="${CSS.escape(id)}"]`);
+    /* 지금 '보이는' 길이를 기준으로 늘린다. height 속성은 최소 길이일 뿐이라,
+       내용이 그보다 길면 그 값에 400 을 더해도 화면에서는 아무 변화가 없다. */
+    const current = node?.offsetHeight ?? (item.props as { height?: number }).height ?? 640;
+    commitFor(id, { height: Math.round(current + 400) }, { free: false });
+  };
 
   /**
    * 섹션 추가.
@@ -545,26 +678,35 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
     setTimeout(reveal, 80);
   };
 
+  /**
+   * id 하나를 실제 선택으로 옮긴다 — 모든 선택 경로가 여기로 모인다.
+   *
+   * 선택은 우리가 쥔다(setPickedId). Puck 의 setUi 는 중첩 존 안의 항목을
+   * 받아주지 않아서, 그쪽에 맡기면 섹션 안의 자유 캔버스 같은 것은 영영
+   * 고를 수 없다. setUi 도 함께 보내지만 그건 최상위 항목 하이라이트용이다.
+   */
+  const selectById = React.useCallback(
+    (id: string) => {
+      setPickedId(id);
+
+      const selector = getSelectorForId(id);
+      if (selector) {
+        dispatch({ type: 'setUi', ui: { itemSelector: { index: selector.index, zone: selector.zone } } });
+      }
+    },
+    [dispatch, getSelectorForId, setPickedId],
+  );
+
   /* 좌측 레이어 목록의 선택 요청을 실제 선택으로 옮긴다.
      목록은 Puck 트리 바깥에 있어 usePuck 을 쓸 수 없다(쓰면 에디터가 통째로
-     오류 화면이 된다). 그래서 바깥은 신호만 남기고, Puck 안인 여기서
-     '자유 배치인지 흐름인지' 판정해 선택을 맞춰 준다 — 한쪽만 갱신하면
-     인스펙터는 A 를 보여 주는데 크기 손잡이는 B 에 붙는다. */
+     오류 화면이 된다). 그래서 바깥은 신호만 남기고, Puck 안인 여기서 수행한다. */
   const selectRequest = useEditorStore((s) => s.selectRequest);
   const handledSelect = React.useRef(selectRequest?.nonce ?? 0);
   React.useEffect(() => {
     if (!selectRequest || selectRequest.nonce === handledSelect.current) return;
     handledSelect.current = selectRequest.nonce;
-
-    const doc = readGeometry(containerRef.current)?.doc;
-    const node = doc?.querySelector<HTMLElement>(`[data-puck-id="${CSS.escape(selectRequest.id)}"]`);
-    setPickedId(node?.dataset.free === 'true' ? selectRequest.id : null);
-
-    const selector = getSelectorForId(selectRequest.id);
-    if (selector) {
-      dispatch({ type: 'setUi', ui: { itemSelector: { index: selector.index, zone: selector.zone } } });
-    }
-  }, [selectRequest, containerRef, dispatch, getSelectorForId, setPickedId]);
+    selectById(selectRequest.id);
+  }, [selectRequest, selectById]);
 
   /* 상단 [＋ 추가 → 섹션 추가] 도 같은 일을 한다.
      섹션을 만드는 코드는 Puck 컨텍스트가 있는 이 안에서만 쓸 수 있으므로,
@@ -629,11 +771,16 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
           휴대폰 폭에서는 세로 스택으로 표시됩니다 — 자유 배치 편집은 넓은 폭에서
         </div>
       ) : null}
-      {/* 캔버스 어디서든 닿는 섹션 추가 버튼 */}
+      {/* 캔버스 어디서든 닿는 '더 만들기' 버튼.
+          종이 한 장짜리 페이지에서는 섹션을 만들 이유가 없다 — 종이를 늘린다. */}
       <button
         type="button"
-        onClick={addSection}
-        title="페이지 맨 아래에 섹션을 추가합니다"
+        onClick={paperId ? () => growPaper(paperId) : addSection}
+        title={
+          paperId
+            ? '종이를 아래로 400px 더 늘립니다 (요소를 끌어 내려도 저절로 늘어납니다)'
+            : '페이지 맨 아래에 섹션을 추가합니다'
+        }
         style={{
           position: 'absolute',
           /* 아래의 영역 오버레이들이 DOM 순서상 뒤에 와서 이 버튼을 덮는다.
@@ -655,24 +802,23 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
           backdropFilter: 'blur(6px)',
         }}
       >
-        ＋ 섹션 추가
+        {paperId ? '종이 늘리기 ↓' : '＋ 섹션 추가'}
       </button>
       {/* 자유 캔버스 영역: 클릭을 받아 우리가 선택을 결정한다 */}
       {regions.map((r, i) => (
         <div
           key={i}
           onPointerDown={(e) => {
-            const id = selectAtPoint(e.clientX, e.clientY);
-            if (!id) {
-              // 빈 곳 — 선택을 풀고 Puck 기본 동작(캔버스 선택)에 맡긴다
-              setPickedId(null);
-              return;
-            }
+            const hit = selectAtPoint(e.clientX, e.clientY);
+            if (!hit) return;
             /* Puck 은 컴포넌트 밖 클릭을 선택 해제로 해석한다. 우리 오버레이는
                캔버스 밖이라 그대로 두면 방금 지정한 선택이 즉시 풀린다. */
             e.preventDefault();
             e.stopPropagation();
-            beginDrag(e, id);
+            /* 종이(자유 캔버스)나 섹션 자체를 골랐을 때는 끌어 옮기지 않는다 —
+               흐름 배치라 좌표가 없고, 끌면 그 안의 것들이 통째로 딸려간 것처럼
+               보인다. 고르기만 하고 크기는 손잡이로 바꾼다. */
+            if (hit.free) beginDrag(e, hit.id);
           }}
           onClick={(e) => e.stopPropagation()}
           onWheel={forwardWheel}

@@ -212,6 +212,74 @@ const ROOT_PROPS = { background: '#ffffff', fontFamily: 'var(--font-noto-kr), sa
 /* ---- 템플릿 정의 ------------------------------------------------------------ */
 
 export const PAGE_TEMPLATES: PageTemplate[] = [
+  /* -------------------------------------------------------------------------
+   * 종이 — 섹션이 없는 한 장짜리 페이지
+   * -------------------------------------------------------------------------
+   * 나머지 템플릿은 '섹션을 쌓는' 구조다. 위에서 아래로 칸을 하나씩 만들고 그
+   * 안을 채운다. 칸이 모자라면 [＋ 섹션 추가] 를 눌러야 하고, 칸의 경계가
+   * 어디인지를 늘 신경 써야 한다.
+   *
+   * 이 템플릿은 칸을 없앤다. 페이지 전체가 자유 배치 종이 한 장이고, 무엇이든
+   * 원하는 자리에 놓는다. 아래로 더 필요하면 종이가 그만큼 길어진다 —
+   * 끌어 내린 요소를 따라 자동으로 늘어나고, 아래쪽 손잡이로 직접 늘려도 된다.
+   * 내보내기는 그대로 HTML 한 장이 된다.
+   * ---------------------------------------------------------------------- */
+  {
+    id: 'blank-paper',
+    name: '빈 종이 (자유 배치)',
+    description: '섹션 없이 종이 한 장. 아무 데나 놓고, 아래로 계속 이어 붙인다.',
+    copyLocales: COPY_LOCALES,
+    build: ({ title, locale }) => {
+      const ctx = makeCtx(title, locale);
+      const paperId = ctx.id();
+      return {
+        root: { props: ROOT_PROPS },
+        /* 섹션으로 감싸지 않는다 — 종이가 곧 페이지다 */
+        content: [
+          {
+            type: 'FreeCanvas',
+            props: {
+              id: paperId,
+              name: '종이',
+              height: 900,
+              snap: 8,
+              style: { background: '#ffffff' },
+            },
+          },
+        ],
+        zones: {
+          [`${paperId}:layers`]: [
+            {
+              type: 'Text',
+              props: {
+                id: ctx.id(),
+                name: '제목',
+                html: titleText(title, ctx.locale, ctx.sourceLocale),
+                tag: 'h1',
+                placement: { x: 120, y: 120, width: 720 },
+                style: { color: '#111827', typography: { fontSize: 56, fontWeight: 800, lineHeight: 1.2 } },
+              },
+            },
+            {
+              type: 'Text',
+              props: {
+                id: ctx.id(),
+                name: '본문',
+                html: loc(
+                  '여기에 내용을 씁니다. 왼쪽 블록 목록에서 끌어다 아무 자리에나 놓으세요.',
+                  'Write here. Drag blocks from the list on the left and drop them anywhere.',
+                ),
+                tag: 'p',
+                placement: { x: 120, y: 220, width: 560 },
+                style: { color: '#6b7280', typography: { fontSize: 18, lineHeight: 1.8 } },
+              },
+            },
+          ],
+        },
+      };
+    },
+  },
+
   {
     id: 'hero-intro',
     name: '히어로 + 소개',
@@ -522,13 +590,24 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
   },
 ];
 
+/* 기본값은 '목록의 첫 번째'가 아니라 이름으로 정한다.
+   목록 맨 앞에 무엇을 놓느냐(= 화면에서 먼저 보이는 카드)와, 못 찾았을 때
+   무엇으로 떨어지느냐는 서로 다른 결정이다. 예전에는 둘이 같아서, 새 템플릿을
+   맨 앞에 놓자마자 모든 페이지의 기본값이 조용히 그것으로 바뀌었다. */
+const FALLBACK_TEMPLATE_ID = 'hero-intro';
+/** 아무 단서 없이 '새 페이지'를 만들 때 — 칸 없는 종이 한 장에서 시작한다 */
+const BLANK_TEMPLATE_ID = 'blank-paper';
+
+const byId = (id: string) => PAGE_TEMPLATES.find((t) => t.id === id);
+
 export function getTemplate(id: string): PageTemplate {
-  return PAGE_TEMPLATES.find((t) => t.id === id) ?? PAGE_TEMPLATES[0];
+  return byId(id) ?? byId(FALLBACK_TEMPLATE_ID) ?? PAGE_TEMPLATES[0];
 }
 
 /** IA 섹션에 어울리는 템플릿을 추천한다 (없으면 기본) */
 export function suggestTemplate(navId?: string): PageTemplate {
-  if (!navId) return PAGE_TEMPLATES[0];
+  const blank = byId(BLANK_TEMPLATE_ID) ?? PAGE_TEMPLATES[0];
+  if (!navId) return blank;
   const root = navId.split('.')[0];
-  return PAGE_TEMPLATES.find((t) => t.suggestedFor?.includes(root)) ?? PAGE_TEMPLATES[0];
+  return PAGE_TEMPLATES.find((t) => t.suggestedFor?.includes(root)) ?? blank;
 }

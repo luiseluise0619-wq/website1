@@ -85,10 +85,18 @@ describe('템플릿 선택', () => {
     expect(suggestTemplate('brand.beauty').id).toBe('brand-grid');
   });
 
-  it('모르는 값은 기본 템플릿으로 떨어진다', () => {
-    expect(suggestTemplate(undefined).id).toBe(PAGE_TEMPLATES[0].id);
-    expect(suggestTemplate('없는섹션').id).toBe(PAGE_TEMPLATES[0].id);
-    expect(getTemplate('없는템플릿').id).toBe(PAGE_TEMPLATES[0].id);
+  /* 기본값은 '목록의 첫 번째'가 아니다.
+     한때 둘이 같았고, 목록 맨 앞에 새 템플릿을 하나 놓자마자 모든 새 페이지의
+     기본값이 조용히 그것으로 바뀌었다. 그래서 위치가 아니라 이름으로 검사한다. */
+  it('단서가 없으면 빈 종이로 시작한다 (칸 없는 한 장)', () => {
+    expect(suggestTemplate(undefined).id).toBe('blank-paper');
+    expect(suggestTemplate('없는섹션').id).toBe('blank-paper');
+  });
+
+  it('모르는 템플릿 id 는 안전한 기본 템플릿으로 떨어진다', () => {
+    /* 여기는 '만들기'가 아니라 '이미 지정된 것을 못 찾은' 경우다 —
+       내용을 통째로 갈아끼우는 자리이므로 백지가 아니라 온전한 페이지로 떨어진다. */
+    expect(getTemplate('없는템플릿').id).toBe('hero-intro');
   });
 });
 

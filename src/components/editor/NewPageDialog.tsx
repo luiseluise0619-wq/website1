@@ -94,6 +94,10 @@ export function NewPageDialog({ preset, existingPaths, onCancel, onCreate }: New
                 <button
                   key={t.id}
                   type="button"
+                  /* 자동 점검이 이름 대신 id 로 고를 수 있게 — 이름은 문구가
+                     바뀌면 흔들리고, 카드가 늘면 순서로도 못 짚는다. */
+                  data-template-id={t.id}
+                  aria-pressed={active}
                   onClick={() => setTemplateId(t.id)}
                   style={{
                     textAlign: 'left',

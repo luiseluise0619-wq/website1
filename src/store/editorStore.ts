@@ -102,6 +102,14 @@ export interface EditorState {
    * 있는지' 표시하려면 흐름 배치까지 아는 값이 하나 필요하다.
    */
   currentElementId: string | null;
+
+  /**
+   * 지금 페이지가 '종이 한 장'인가 (맨 위가 자유 캔버스 하나뿐).
+   * 종이에는 칸(섹션)이라는 개념이 없으므로 [＋ 추가] 에서 '섹션 추가'를
+   * 뺀다 — 눌러 봐야 종이 옆에 엉뚱한 칸이 하나 생길 뿐이다.
+   * 판정은 Puck 데이터를 들고 있는 캔버스 조작 레이어가 해서 알려 준다.
+   */
+  isPaperPage: boolean;
 }
 
 export interface EditorActions {
@@ -139,6 +147,7 @@ export interface EditorActions {
   requestAddSection: () => void;
   requestSelect: (id: string) => void;
   setCurrentElement: (id: string | null) => void;
+  setPaperPage: (v: boolean) => void;
   setSaving: (v: boolean) => void;
   markSaved: (saved?: Array<{ id: string; revision: number }>) => void;
   setPickedElement: (id: string | null) => void;
@@ -191,6 +200,7 @@ export const useEditorStore = create<EditorStore>((set, get) => {
     addSectionRequest: 0,
     selectRequest: null,
     currentElementId: null,
+    isPaperPage: false,
 
     loadPages: (pages) =>
       set({
@@ -304,6 +314,9 @@ export const useEditorStore = create<EditorStore>((set, get) => {
     requestSelect: (id) =>
       set((s) => ({ selectRequest: { id, nonce: (s.selectRequest?.nonce ?? 0) + 1 } })),
     setCurrentElement: (currentElementId) => set({ currentElementId }),
+    /* 같은 값이면 건드리지 않는다 — 캔버스가 바뀔 때마다 불리므로,
+       매번 set 하면 에디터 전체가 쓸데없이 다시 그려진다. */
+    setPaperPage: (v) => set((s) => (s.isPaperPage === v ? {} : { isPaperPage: v })),
 
     setEditingLocale: (editingLocale) => set({ editingLocale }),
     setTranslating: (translating, translationProgress = null) => set({ translating, translationProgress }),

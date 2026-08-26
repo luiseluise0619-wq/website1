@@ -80,6 +80,7 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
   const lastSavedAt = useEditorStore((s) => s.lastSavedAt);
   const setNewPage = useEditorStore((s) => s.setNewPage);
   const requestAddSection = useEditorStore((s) => s.requestAddSection);
+  const isPaperPage = useEditorStore((s) => s.isPaperPage);
 
   const [message, setMessage] = React.useState<string | null>(null);
   const [exporting, setExporting] = React.useState(false);
@@ -299,13 +300,19 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
               hint: '주소와 템플릿을 정해 페이지를 하나 만듭니다',
               onSelect: () => setNewPage({ preset: null }),
             },
-            {
-              key: 'section',
-              icon: '▭',
-              label: '섹션 추가',
-              hint: '지금 페이지 맨 아래에 빈 섹션을 넣습니다',
-              onSelect: requestAddSection,
-            },
+            /* 종이 한 장짜리 페이지에는 칸이 없다 — 섹션을 넣을 자리도 없다.
+               (종이를 늘리는 일은 캔버스 아래 [종이 늘리기] 가 맡는다) */
+            ...(isPaperPage
+              ? []
+              : [
+                  {
+                    key: 'section',
+                    icon: '▭',
+                    label: '섹션 추가',
+                    hint: '지금 페이지 맨 아래에 빈 섹션을 넣습니다',
+                    onSelect: requestAddSection,
+                  },
+                ]),
             {
               key: 'import',
               icon: '⤵',
