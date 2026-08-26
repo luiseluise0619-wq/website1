@@ -27,11 +27,23 @@ export function PageTree({ onError }: PageTreeProps = {}) {
   const [filter, setFilter] = React.useState('');
   /** null = 닫힘, undefined preset = 빈 페이지에서 시작 */
   const [dialog, setDialog] = React.useState<{ preset: NavNode | null } | null>(null);
+  /* 상단 [＋ 추가] 도 같은 대화상자를 연다 — 대화상자는 여기 한 곳에서만
+     그린다(두 벌을 두면 둘 다 열려 겹치는 날이 온다). */
+  const newPageOpen = useEditorStore((s) => s.newPageOpen);
+  const setNewPageOpen = useEditorStore((s) => s.setNewPageOpen);
+  React.useEffect(() => {
+    if (newPageOpen) setDialog({ preset: null });
+  }, [newPageOpen]);
 
   const byPath = React.useMemo(() => new Map(pages.map((p) => [p.path, p])), [pages]);
 
-  const handleCreate = (result: NewPageResult) => {
+  const closeDialog = () => {
     setDialog(null);
+    setNewPageOpen(false);
+  };
+
+  const handleCreate = (result: NewPageResult) => {
+    closeDialog();
     createPage(result);
   };
 
@@ -50,6 +62,15 @@ export function PageTree({ onError }: PageTreeProps = {}) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      {/* 만들기는 맨 위에 둔다.
+          예전에는 목록 맨 아래에 있었는데, 페이지가 39개면 스크롤 끝이라
+          "새 페이지를 어디서 만드나"를 매번 찾아야 했다. */}
+      <div style={{ padding: '10px 12px 0' }}>
+        <button type="button" onClick={() => setDialog({ preset: null })} style={createBtn}>
+          ＋ 새 페이지
+        </button>
+      </div>
+
       <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--ks-edge)' }}>
         <input
           value={filter}
@@ -93,15 +114,11 @@ export function PageTree({ onError }: PageTreeProps = {}) {
         <CustomPages pages={pages} activePageId={activePageId} onSelect={setActivePage} onDelete={handleDelete} onDuplicate={duplicatePage} />
       </div>
 
-      <button type="button" onClick={() => setDialog({ preset: null })} style={createBtn}>
-        ＋ 새 페이지
-      </button>
-
       {dialog ? (
         <NewPageDialog
           preset={dialog.preset}
           existingPaths={pages.map((p) => p.path)}
-          onCancel={() => setDialog(null)}
+          onCancel={closeDialog}
           onCreate={handleCreate}
         />
       ) : null}

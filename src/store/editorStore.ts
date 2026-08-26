@@ -71,6 +71,15 @@ export interface EditorState {
    * 스크롤이 맨 위로 튄다. 스토어에 두면 오버라이드가 직접 읽어 갈 수 있다.
    */
   rightTab: RightTab;
+
+  /* --- 만들기 요청 (상단 [＋ 추가] → 다른 컴포넌트가 실제로 수행) ---
+     '새로 만드는 일'을 한 버튼에 모으려면 그 버튼이 여기저기 흩어진 기능을
+     불러야 한다. 컴포넌트끼리 직접 부르게 엮으면 트리 모양에 묶이므로,
+     스토어에 신호만 남기고 할 수 있는 쪽이 집어 간다. */
+  /** 새 페이지 대화상자가 열려 있는가 (좌측 목록이 실제로 그린다) */
+  newPageOpen: boolean;
+  /** 섹션 추가 요청 횟수 — 캔버스 조작 레이어가 늘어난 것을 보고 만든다 */
+  addSectionRequest: number;
 }
 
 export interface EditorActions {
@@ -105,6 +114,8 @@ export interface EditorActions {
   setAnalyticsError: (message: string | null) => void;
 
   setRightTab: (tab: RightTab) => void;
+  setNewPageOpen: (v: boolean) => void;
+  requestAddSection: () => void;
   setSaving: (v: boolean) => void;
   markSaved: (saved?: Array<{ id: string; revision: number }>) => void;
   setPickedElement: (id: string | null) => void;
@@ -154,6 +165,8 @@ export const useEditorStore = create<EditorStore>((set, get) => {
     lastSavedAt: null,
     pickedElementId: null,
     rightTab: 'style',
+    newPageOpen: false,
+    addSectionRequest: 0,
 
     loadPages: (pages) =>
       set({
@@ -262,6 +275,8 @@ export const useEditorStore = create<EditorStore>((set, get) => {
       patchPage(pageId, (p) => (p.content === content ? p : { ...p, content, revision: p.revision + 1 })),
 
     setRightTab: (rightTab) => set({ rightTab }),
+    setNewPageOpen: (newPageOpen) => set({ newPageOpen }),
+    requestAddSection: () => set((s) => ({ addSectionRequest: s.addSectionRequest + 1 })),
 
     setEditingLocale: (editingLocale) => set({ editingLocale }),
     toggleTranslationBadges: () => set((s) => ({ showTranslationBadges: !s.showTranslationBadges })),

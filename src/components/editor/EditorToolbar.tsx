@@ -8,6 +8,7 @@ import { coverageReport } from '@/lib/translate/walk';
 import { PAGE_TEMPLATES } from '@/data/templates';
 import { SitePreview } from './SitePreview';
 import { ImportHtmlDialog } from './ImportHtmlDialog';
+import { AddMenu } from './AddMenu';
 import type { LocaleCode, PuckPageData } from '@/types/schema';
 
 /* =============================================================================
@@ -76,6 +77,8 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
   const showBadges = useEditorStore((s) => s.showTranslationBadges);
   const toggleBadges = useEditorStore((s) => s.toggleTranslationBadges);
   const applyTemplate = useEditorStore((s) => s.applyTemplate);
+  const setNewPageOpen = useEditorStore((s) => s.setNewPageOpen);
+  const requestAddSection = useEditorStore((s) => s.requestAddSection);
 
   const [message, setMessage] = React.useState<string | null>(null);
   const [exporting, setExporting] = React.useState(false);
@@ -309,8 +312,18 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
 
       {/* --- 저장 --- */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 8 }}>
-        <a href={page.path} target="_blank" rel="noreferrer" style={{ ...btn, textDecoration: 'none' }}>
-          미리보기 ↗
+        {/* 예전에는 여기가 [미리보기 ↗] 였는데, 운영자가 사이트 첫 화면으로
+            들어오면 에디터로 보내게 되면서 이 링크가 스스로에게 되돌아오는
+            함정이 됐다. ?site=1 로 공개 화면을 그대로 연다.
+            (화면 안에서 보는 미리보기는 위의 [미리보기] 버튼이 맡는다) */}
+        <a
+          href={`${page.path}${page.path.includes('?') ? '&' : '?'}site=1`}
+          target="_blank"
+          rel="noreferrer"
+          title="공개 화면을 새 탭에서 엽니다"
+          style={{ ...btn, textDecoration: 'none' }}
+        >
+          새 탭 ↗
         </a>
         {/* 접수된 문의를 볼 곳이 없으면 BUSINESS 폼은 있으나 마나다 */}
         <a
@@ -336,14 +349,32 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
             </span>
           ) : null}
         </a>
-        <button
-          type="button"
-          onClick={() => setImporting(true)}
-          title="이미 있는 HTML 을 캔버스로 불러와 이어서 고칩니다"
-          style={btn}
-        >
-          HTML 가져오기
-        </button>
+        {/* 만드는 일은 한 버튼 아래로 — 흩어져 있으면 매번 다시 찾아야 한다 */}
+        <AddMenu
+          items={[
+            {
+              key: 'page',
+              icon: '📄',
+              label: '새 페이지',
+              hint: '주소와 템플릿을 정해 페이지를 하나 만듭니다',
+              onSelect: () => setNewPageOpen(true),
+            },
+            {
+              key: 'section',
+              icon: '▭',
+              label: '섹션 추가',
+              hint: '지금 페이지 맨 아래에 빈 섹션을 넣습니다',
+              onSelect: requestAddSection,
+            },
+            {
+              key: 'import',
+              icon: '⤵',
+              label: 'HTML 가져오기',
+              hint: '이미 있는 HTML 을 블록으로 바꿔 들여옵니다',
+              onSelect: () => setImporting(true),
+            },
+          ]}
+        />
         <button
           type="button"
           onClick={() => setPreviewing(true)}

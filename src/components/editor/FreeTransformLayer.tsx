@@ -461,7 +461,6 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
   /* 좌표를 containerRef 기준으로 계산하므로, 실제 DOM 도 그 컨테이너 안에 있어야
      한다. Puck 내부 어딘가에 렌더되면 offsetParent 가 달라져 위치가 어긋난다. */
   const host = containerRef.current;
-  if (!host) return null;
 
   /**
    * 섹션 추가.
@@ -510,6 +509,20 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
     setTimeout(reveal, 80);
   };
 
+  /* 상단 [＋ 추가 → 섹션 추가] 도 같은 일을 한다.
+     섹션을 만드는 코드는 Puck 컨텍스트가 있는 이 안에서만 쓸 수 있으므로,
+     툴바는 스토어에 요청만 남기고 실제 작업은 여기서 집어 간다.
+     첫 렌더의 0 은 요청이 아니므로 건너뛴다. */
+  const addSectionRequest = useEditorStore((s) => s.addSectionRequest);
+  const handledRequest = React.useRef(addSectionRequest);
+  React.useEffect(() => {
+    if (addSectionRequest === handledRequest.current) return;
+    handledRequest.current = addSectionRequest;
+    addSection();
+    // addSection 은 매 렌더 새로 만들어지지만, 실행 시점의 최신 것을 쓰면 된다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addSectionRequest]);
+
   /* 오버레이가 포인터를 받으므로 휠 이벤트도 우리에게 온다.
      그대로 두면 캔버스 위에서 마우스를 굴려도 페이지가 스크롤되지 않는다.
      받은 만큼 캔버스(iframe body)를 직접 굴려 준다. */
@@ -537,7 +550,7 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
     if (scroller) scroller.scrollTop += e.deltaY;
   };
 
-  return createPortal(
+  return host ? createPortal(
     <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 2000 }}>
       {locked ? (
         <div
@@ -686,7 +699,7 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
       ) : null}
     </div>,
     host,
-  );
+  ) : null;
 }
 
 const removeBtn: React.CSSProperties = {

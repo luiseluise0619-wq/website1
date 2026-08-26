@@ -41,6 +41,18 @@ export function NewPageDialog({ preset, existingPaths, onCancel, onCreate }: New
   const duplicate = normalized !== '' && existingPaths.includes(normalized);
   const valid = title.trim() !== '' && normalized !== '' && normalized !== '/' && !duplicate;
 
+  /* Esc 로 닫는다.
+     배경 클릭만 되고 Esc 가 안 되면, 화면을 덮은 상자 앞에서 습관대로 Esc 를
+     누른 사람은 아무 반응이 없어 갇힌 것처럼 느낀다(그 상태에서 뒤의 버튼은
+     배경이 가로채 눌리지도 않는다). */
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onCancel]);
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!valid) return;
@@ -48,7 +60,7 @@ export function NewPageDialog({ preset, existingPaths, onCancel, onCreate }: New
   };
 
   return (
-    <div style={backdrop} onClick={onCancel}>
+    <div style={backdrop} onClick={onCancel} role="dialog" aria-modal="true" aria-label="새 페이지">
       <form style={dialog} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
         <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>새 페이지</h2>
 
