@@ -34,8 +34,6 @@ export interface EditorState {
 
   /** i18n — 에디터가 지금 편집 중인 언어 */
   editingLocale: LocaleCode;
-  /** 번역 상태 뱃지(미번역/자동/원문변경) 표시 */
-  showTranslationBadges: boolean;
   translating: boolean;
   translationProgress: { done: number; total: number } | null;
 
@@ -126,7 +124,6 @@ export interface EditorActions {
   commitContent: (pageId: string, content: PuckPageData) => void;
 
   setEditingLocale: (locale: LocaleCode) => void;
-  toggleTranslationBadges: () => void;
   setTranslating: (v: boolean, progress?: { done: number; total: number } | null) => void;
 
   toggleHeatmap: () => void;
@@ -174,7 +171,6 @@ export const useEditorStore = create<EditorStore>((set, get) => {
     pages: [],
     activePageId: null,
     editingLocale: DEFAULT_LOCALE,
-    showTranslationBadges: true,
     translating: false,
     translationProgress: null,
     heatmapEnabled: false,
@@ -310,7 +306,6 @@ export const useEditorStore = create<EditorStore>((set, get) => {
     setCurrentElement: (currentElementId) => set({ currentElementId }),
 
     setEditingLocale: (editingLocale) => set({ editingLocale }),
-    toggleTranslationBadges: () => set((s) => ({ showTranslationBadges: !s.showTranslationBadges })),
     setTranslating: (translating, translationProgress = null) => set({ translating, translationProgress }),
 
     toggleHeatmap: () => set((s) => ({ heatmapEnabled: !s.heatmapEnabled })),

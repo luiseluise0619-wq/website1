@@ -5,14 +5,21 @@ import { useEditorStore } from '@/store/editorStore';
 import { LOCALES, LOCALE_ORDER } from '@/lib/i18n';
 import { translatePage } from '@/lib/translate/pipeline';
 import { coverageReport } from '@/lib/translate/walk';
-import { PAGE_TEMPLATES } from '@/data/templates';
 import { SitePreview } from './SitePreview';
 import { ImportHtmlDialog } from './ImportHtmlDialog';
 import { AddMenu } from './AddMenu';
 import type { LocaleCode, PuckPageData } from '@/types/schema';
 
 /* =============================================================================
- * 에디터 상단 바 — 언어 전환 / 자동번역 / 히트맵 / 저장·발행
+ * 에디터 상단 바 — 언어 전환 / 자동번역 / 만들기 / 저장·발행
+ * -----------------------------------------------------------------------------
+ * 여기에는 '페이지를 편집하는 동안 늘 손이 가는 것'만 둔다. 한때 템플릿 적용,
+ * 번역 상태 ON/OFF, 히트맵 지표 선택까지 스물두 개가 한 줄에 늘어서 있었고,
+ * 그 줄이 두 줄로 접히면서 캔버스를 밀어냈다. 지금은:
+ *   · 템플릿 적용   → 우측 [페이지] 탭 (제목·경로·SEO 와 같은 성격이다)
+ *   · 히트맵 조작   → 우측 [분석] 탭 (데이터가 있는 곳에서 켠다)
+ *   · 번역 상태 배지 → 끌 이유가 없어 항상 켬
+ *   · 새 탭 열기    → [미리보기] 안에 이미 있다
  * ========================================================================== */
 
 export interface EditorToolbarProps {
@@ -63,20 +70,14 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
   const setEditingLocale = useEditorStore((s) => s.setEditingLocale);
   const heatmapEnabled = useEditorStore((s) => s.heatmapEnabled);
   const toggleHeatmap = useEditorStore((s) => s.toggleHeatmap);
-  const heatmapMetric = useEditorStore((s) => s.heatmapMetric);
-  const setHeatmapMetric = useEditorStore((s) => s.setHeatmapMetric);
-  const heatmapPixel = useEditorStore((s) => s.heatmapPixel);
-  const toggleHeatmapPixel = useEditorStore((s) => s.toggleHeatmapPixel);
   const translating = useEditorStore((s) => s.translating);
   const progress = useEditorStore((s) => s.translationProgress);
   const setTranslating = useEditorStore((s) => s.setTranslating);
   const dirty = useEditorStore((s) => s.dirty);
   const saving = useEditorStore((s) => s.saving);
   const updatePageMeta = useEditorStore((s) => s.updatePageMeta);
+  const setRightTab = useEditorStore((s) => s.setRightTab);
   const lastSavedAt = useEditorStore((s) => s.lastSavedAt);
-  const showBadges = useEditorStore((s) => s.showTranslationBadges);
-  const toggleBadges = useEditorStore((s) => s.toggleTranslationBadges);
-  const applyTemplate = useEditorStore((s) => s.applyTemplate);
   const setNewPage = useEditorStore((s) => s.setNewPage);
   const requestAddSection = useEditorStore((s) => s.requestAddSection);
 
@@ -181,12 +182,18 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
       {/* --- 페이지 정보 --- */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
         <strong style={{ fontSize: 13, whiteSpace: 'nowrap' }}>{page.title}</strong>
-        <input
-          value={page.path}
-          onChange={(e) => updatePageMeta(page.id, { path: e.target.value })}
-          title="URL 경로"
-          style={{ ...input, width: 190, fontFamily: 'monospace', fontSize: 11 }}
-        />
+        {/* 주소는 여기서 '보여 주기만' 한다. 고치는 곳은 우측 [페이지] 탭 —
+            제목·템플릿·SEO 와 한자리에 모아야 페이지 설정을 한 번에 본다.
+            눌러서 그 탭으로 바로 건너뛴다. */}
+        <button
+          type="button"
+          data-ks-path={page.path}
+          title="URL 경로 — 눌러서 [페이지] 탭에서 고칩니다"
+          onClick={() => setRightTab('seo')}
+          style={pathBtn}
+        >
+          {page.path}
+        </button>
         <select
           value={page.status}
           onChange={(e) => updatePageMeta(page.id, { status: e.target.value as typeof page.status })}
@@ -206,29 +213,6 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
       >
         {wide ? '넓게 ON' : '넓게'}
       </button>
-
-      {/* 현재 페이지를 다른 템플릿으로 갈아끼운다 */}
-      <select
-        value=""
-        title="이 페이지에 템플릿 적용 (내용이 교체됩니다)"
-        onChange={(e) => {
-          const id = e.target.value;
-          e.target.value = '';
-          if (!id) return;
-          const t = PAGE_TEMPLATES.find((x) => x.id === id);
-          if (!t) return;
-          if (!window.confirm(`'${t.name}' 템플릿으로 교체합니다. 현재 페이지 내용은 사라집니다. 계속할까요?`)) return;
-          applyTemplate(page.id, id);
-        }}
-        style={{ ...input, width: 130 }}
-      >
-        <option value="">템플릿 적용…</option>
-        {PAGE_TEMPLATES.map((t) => (
-          <option key={t.id} value={t.id}>
-            {t.name}
-          </option>
-        ))}
-      </select>
 
       <div style={{ flex: 1 }} />
 
@@ -263,68 +247,24 @@ export function EditorToolbar({ getCurrentData, onReplaceData, onSave, wide, onT
         <button type="button" onClick={handleTranslateAll} disabled={translating} style={{ ...btn, marginLeft: 4 }}>
           {translating ? `번역 중 ${progress?.done ?? 0}/${progress?.total ?? 0}` : '전체 자동번역'}
         </button>
-
-        {/* 번역 상태 배지(자동/미번역/원문변경)를 인스펙터에 표시할지 */}
-        <button
-          type="button"
-          onClick={toggleBadges}
-          title="입력칸 옆의 번역 상태 표시를 켜고 끕니다"
-          style={{ ...btn, opacity: showBadges ? 1 : 0.55 }}
-        >
-          번역 상태 {showBadges ? 'ON' : 'OFF'}
-        </button>
       </div>
 
-      {/* --- 히트맵 --- */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 8 }}>
+      {/* 히트맵을 켜고 끄는 곳은 우측 [분석] 탭이다. 다만 켜 두고 다른 탭으로
+          넘어가면 캔버스가 붉게 덮인 채 끌 방법이 사라진다 — 켜져 있을 때만
+          여기 끄는 자리를 남긴다. */}
+      {heatmapEnabled ? (
         <button
           type="button"
           onClick={toggleHeatmap}
-          style={{ ...btn, background: heatmapEnabled ? '#ef4444' : 'transparent', color: heatmapEnabled ? '#fff' : 'inherit' }}
+          title="히트맵 겹쳐보기를 끕니다 (지표 선택은 우측 [분석] 탭)"
+          style={{ ...btn, marginLeft: 8, background: '#ef4444', color: '#fff' }}
         >
-          히트맵 {heatmapEnabled ? 'ON' : 'OFF'}
+          히트맵 ON ✕
         </button>
-        {heatmapEnabled ? (
-          <>
-          <select
-            value={heatmapMetric}
-            onChange={(e) => setHeatmapMetric(e.target.value as 'clicks' | 'ctr' | 'rage' | 'dead')}
-            style={{ ...input, width: 120 }}
-          >
-            <option value="clicks">클릭 수</option>
-            <option value="ctr">CTR</option>
-            <option value="rage">분노 클릭</option>
-            <option value="dead">데드 클릭</option>
-          </select>
-
-          {/* 요소 박스는 '무엇이 눌렸나', 픽셀은 '어디를 눌렀나' */}
-          <button
-            type="button"
-            onClick={toggleHeatmapPixel}
-            title="클릭 좌표를 점으로 그립니다 (요소 단위 대신)"
-            style={{ ...btn, background: heatmapPixel ? '#3b82f6' : 'transparent', color: heatmapPixel ? '#fff' : 'inherit' }}
-          >
-            픽셀
-          </button>
-          </>
-        ) : null}
-      </div>
+      ) : null}
 
       {/* --- 저장 --- */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 8 }}>
-        {/* 예전에는 여기가 [미리보기 ↗] 였는데, 운영자가 사이트 첫 화면으로
-            들어오면 에디터로 보내게 되면서 이 링크가 스스로에게 되돌아오는
-            함정이 됐다. ?site=1 로 공개 화면을 그대로 연다.
-            (화면 안에서 보는 미리보기는 위의 [미리보기] 버튼이 맡는다) */}
-        <a
-          href={`${page.path}${page.path.includes('?') ? '&' : '?'}site=1`}
-          target="_blank"
-          rel="noreferrer"
-          title="공개 화면을 새 탭에서 엽니다"
-          style={{ ...btn, textDecoration: 'none' }}
-        >
-          새 탭 ↗
-        </a>
         {/* 접수된 문의를 볼 곳이 없으면 BUSINESS 폼은 있으나 마나다 */}
         <a
           href="/admin/inquiries"
@@ -473,6 +413,21 @@ const btn: React.CSSProperties = {
   color: 'inherit',
   fontSize: 12,
   cursor: 'pointer',
+  whiteSpace: 'nowrap',
+};
+
+const pathBtn: React.CSSProperties = {
+  maxWidth: 220,
+  padding: '5px 8px',
+  borderRadius: 6,
+  border: '1px solid transparent',
+  background: 'transparent',
+  color: 'var(--ks-muted, #8b95a7)',
+  fontFamily: 'monospace',
+  fontSize: 11,
+  cursor: 'pointer',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
 };
 

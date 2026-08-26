@@ -168,7 +168,7 @@ if (box && frameBox) {
 /* ---- 4) 우측 패널 탭 전환 ------------------------------------------------- */
 
 target = await parkBelow('탭 전환');
-for (const label of ['SEO', '스타일']) {
+for (const label of ['페이지', '스타일']) {
   await page.locator(`form button:has-text("${label}")`).first().click({ force: true }).catch(() => {});
   await page.waitForTimeout(700);
 }

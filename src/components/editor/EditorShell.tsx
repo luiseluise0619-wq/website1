@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Puck } from '@puckeditor/core';
+import { Puck, usePuck } from '@puckeditor/core';
 import '@puckeditor/core/puck.css';
 import { puckConfig } from '@/puck/config';
 import { RenderCtx } from '@/puck/blocks/shared';
@@ -88,8 +88,62 @@ const FieldsOverride = ({
   );
 };
 
-/** 위 두 컴포넌트를 담은 객체도 한 번만 만든다 (Puck 이 객체 동일성도 본다) */
-const PUCK_OVERRIDES = { preview: PreviewOverride, fields: FieldsOverride };
+/**
+ * Puck 기본 헤더 자리 — 되돌리기/다시 실행만 남긴다.
+ *
+ * 기본 헤더는 페이지 제목·주소·[Publish] 를 그린다. 우리 상단 바가 이미 셋 다
+ * 갖고 있어서, 화면 맨 위에 제목이 두 줄, 발행 버튼이 두 개 있었다. 둘 중
+ * 어느 쪽을 눌러야 하는지 알 수 없고, 캔버스 높이만 50px 깎아 먹었다.
+ * 남길 것은 되돌리기뿐이다 — Ctrl+Z 로도 되지만 눌러서 보이는 자리가 없으면
+ * 되는지조차 알 수 없다.
+ */
+const HeaderOverride = () => {
+  const { history } = usePuck();
+  return (
+    <div style={puckHeader}>
+      <button
+        type="button"
+        onClick={history.back}
+        disabled={!history.hasPast}
+        title="되돌리기 (Ctrl+Z)"
+        style={{ ...historyBtn, opacity: history.hasPast ? 1 : 0.3 }}
+      >
+        ↶ 되돌리기
+      </button>
+      <button
+        type="button"
+        onClick={history.forward}
+        disabled={!history.hasFuture}
+        title="다시 실행 (Ctrl+Shift+Z)"
+        style={{ ...historyBtn, opacity: history.hasFuture ? 1 : 0.3 }}
+      >
+        ↷ 다시 실행
+      </button>
+    </div>
+  );
+};
+
+/** 위 세 컴포넌트를 담은 객체도 한 번만 만든다 (Puck 이 객체 동일성도 본다) */
+const PUCK_OVERRIDES = { preview: PreviewOverride, fields: FieldsOverride, header: HeaderOverride };
+
+const puckHeader: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '6px 12px',
+  borderBottom: '1px solid var(--puck-color-grey-09, #e5e7eb)',
+  background: 'var(--puck-color-grey-12, #fafafa)',
+};
+
+const historyBtn: React.CSSProperties = {
+  padding: '4px 10px',
+  borderRadius: 6,
+  border: '1px solid var(--puck-color-grey-09, #e5e7eb)',
+  background: 'var(--puck-color-white, #fff)',
+  color: 'var(--puck-color-black, #111827)',
+  fontSize: 11.5,
+  cursor: 'pointer',
+};
 
 export function EditorShell({
   initialPages,
@@ -362,12 +416,9 @@ export function EditorShell({
                   commitContent(activePage.id, data as unknown as PuckPageData);
                 }}
                 onPublish={() => handleSave(true)}
-                /* Puck 의 기본 헤더는 우리 툴바로 대체한다 */
-                headerTitle={activePage.title}
-                headerPath={activePage.path}
-                /* 우측 사이드바 전체를 우리 패널(fields)로 교체하고, 캔버스 위에
-                   자유 배치 조작 레이어(preview)를 얹는다. 반드시 고정된
-                   참조여야 한다 — 위 주석 참고. */
+                /* 우측 사이드바 전체를 우리 패널(fields)로, 기본 헤더를 되돌리기
+                   줄(header)로 바꾸고, 캔버스 위에 자유 배치 조작 레이어(preview)를
+                   얹는다. 반드시 고정된 참조여야 한다 — 위 주석 참고. */
                 overrides={PUCK_OVERRIDES}
               />
             </CanvasRefCtx.Provider>

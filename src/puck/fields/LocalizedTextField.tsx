@@ -34,7 +34,6 @@ export function LocalizedTextInput({ value, onChange, label, multiline }: Props)
   const editingLocale = useEditorStore((s) => s.editingLocale);
   /* 뱃지를 눌러 그 언어로 바로 넘어갈 수 있게 한다 — 상단까지 올라가지 않아도 된다 */
   const setEditingLocale = useEditorStore((s) => s.setEditingLocale);
-  const showBadges = useEditorStore((s) => s.showTranslationBadges);
   const sourceLocale = useEditorStore((s) => s.activePage()?.sourceLocale ?? 'ko');
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -127,35 +126,35 @@ export function LocalizedTextInput({ value, onChange, label, multiline }: Props)
         }}
       />
 
-      {showBadges ? (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-          {LOCALE_ORDER.map((locale) => {
-            const state = translationState(value, locale, sourceLocale);
-            const s = STATE_STYLE[state];
-            return (
-              <button
-                key={locale}
-                type="button"
-                onClick={() => setEditingLocale(locale)}
-                title={`${LOCALES[locale].koName}: ${s.label} — 눌러서 이 언어로 편집`}
-                style={{
-                  fontSize: 10,
-                  padding: '2px 5px',
-                  borderRadius: 4,
-                  background: s.bg,
-                  color: s.fg,
-                  fontWeight: 600,
-                  opacity: locale === editingLocale ? 1 : 0.75,
-                  border: locale === editingLocale ? '1px solid currentColor' : '1px solid transparent',
-                  cursor: 'pointer',
-                }}
-              >
-                {locale.toUpperCase()}
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
+      {/* 번역 상태 배지 — 한때 상단 바에서 끌 수 있었지만, 끄면 '이 언어가
+          비었는지'를 알 방법이 사라질 뿐이라 끌 이유가 없었다. 항상 보여 준다. */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+        {LOCALE_ORDER.map((locale) => {
+          const state = translationState(value, locale, sourceLocale);
+          const s = STATE_STYLE[state];
+          return (
+            <button
+              key={locale}
+              type="button"
+              onClick={() => setEditingLocale(locale)}
+              title={`${LOCALES[locale].koName}: ${s.label} — 눌러서 이 언어로 편집`}
+              style={{
+                fontSize: 10,
+                padding: '2px 5px',
+                borderRadius: 4,
+                background: s.bg,
+                color: s.fg,
+                fontWeight: 600,
+                opacity: locale === editingLocale ? 1 : 0.75,
+                border: locale === editingLocale ? '1px solid currentColor' : '1px solid transparent',
+                cursor: 'pointer',
+              }}
+            >
+              {locale.toUpperCase()}
+            </button>
+          );
+        })}
+      </div>
 
       {error ? <span style={{ fontSize: 11, color: '#b91c1c' }}>{error}</span> : null}
     </div>

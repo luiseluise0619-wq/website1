@@ -46,7 +46,7 @@ export function RightPanel({ children, isLoading, hasSelection, analytics, tab, 
         {(
           [
             ['style', '스타일'],
-            ['seo', 'SEO'],
+            ['seo', '페이지'],
             ['analytics', '분석'],
           ] as const
         ).map(([key, label]) => (
@@ -104,21 +104,114 @@ function AnalyticsTab({ summary }: { summary: PageAnalyticsSummary | null }) {
   const loading = useEditorStore((s) => s.analyticsLoading);
   const error = useEditorStore((s) => s.analyticsError);
 
-  if (error) {
-    return (
-      <div style={{ padding: 16, fontSize: 12, color: '#b91c1c', lineHeight: 1.6 }}>
-        <strong>분석 데이터를 불러오지 못했습니다</strong>
-        <p style={{ margin: '6px 0 0', color: '#7f1d1d' }}>{error}</p>
-      </div>
-    );
-  }
-
-  if (loading && !summary) {
-    return <div style={{ padding: 16, fontSize: 12, opacity: 0.6 }}>분석 데이터를 불러오는 중…</div>;
-  }
-
-  return <DropOffPanel summary={summary} />;
+  return (
+    <>
+      {/* 히트맵 조작은 상단 바에 있었다. 지표를 고르려면 숫자를 봐야 하는데
+          그 숫자는 이 탭에 있어서, 켜고 → 위로 올라가 지표를 바꾸고 →
+          다시 내려와 확인하는 왕복이 됐다. 데이터 옆으로 옮긴다. */}
+      <HeatmapControls />
+      {error ? (
+        <div style={{ padding: 16, fontSize: 12, color: '#b91c1c', lineHeight: 1.6 }}>
+          <strong>분석 데이터를 불러오지 못했습니다</strong>
+          <p style={{ margin: '6px 0 0', color: '#7f1d1d' }}>{error}</p>
+        </div>
+      ) : loading && !summary ? (
+        <div style={{ padding: 16, fontSize: 12, opacity: 0.6 }}>분석 데이터를 불러오는 중…</div>
+      ) : (
+        <DropOffPanel summary={summary} />
+      )}
+    </>
+  );
 }
+
+/** 캔버스에 히트맵을 겹쳐 보는 조작 — 켜기 / 무엇을 볼지 / 어떻게 그릴지 */
+function HeatmapControls() {
+  const enabled = useEditorStore((s) => s.heatmapEnabled);
+  const toggle = useEditorStore((s) => s.toggleHeatmap);
+  const metric = useEditorStore((s) => s.heatmapMetric);
+  const setMetric = useEditorStore((s) => s.setHeatmapMetric);
+  const pixel = useEditorStore((s) => s.heatmapPixel);
+  const togglePixel = useEditorStore((s) => s.toggleHeatmapPixel);
+
+  return (
+    <div style={heatBox}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button
+          type="button"
+          onClick={toggle}
+          title="캔버스 위에 클릭 분포를 겹쳐 그립니다"
+          style={{
+            ...heatBtn,
+            background: enabled ? '#ef4444' : 'transparent',
+            color: enabled ? '#fff' : 'inherit',
+            borderColor: enabled ? '#ef4444' : 'var(--puck-color-grey-09, #e5e7eb)',
+          }}
+        >
+          히트맵 {enabled ? 'ON' : 'OFF'}
+        </button>
+        <span style={{ fontSize: 11, opacity: 0.6 }}>캔버스에 겹쳐 보기</span>
+      </div>
+
+      {enabled ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <select
+            value={metric}
+            onChange={(e) => setMetric(e.target.value as 'clicks' | 'ctr' | 'rage' | 'dead')}
+            style={heatSelect}
+          >
+            <option value="clicks">클릭 수</option>
+            <option value="ctr">CTR</option>
+            <option value="rage">분노 클릭</option>
+            <option value="dead">데드 클릭</option>
+          </select>
+          {/* 요소 박스는 '무엇이 눌렸나', 픽셀은 '어디를 눌렀나' */}
+          <button
+            type="button"
+            onClick={togglePixel}
+            title="클릭 좌표를 점으로 그립니다 (요소 단위 대신)"
+            style={{
+              ...heatBtn,
+              background: pixel ? 'var(--puck-color-azure-05, #3b82f6)' : 'transparent',
+              color: pixel ? '#fff' : 'inherit',
+              borderColor: pixel ? 'var(--puck-color-azure-05, #3b82f6)' : 'var(--puck-color-grey-09, #e5e7eb)',
+            }}
+          >
+            픽셀
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+const heatBox: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 8,
+  padding: '12px 14px',
+  borderBottom: '1px solid var(--puck-color-grey-09, #e5e7eb)',
+  background: 'var(--puck-color-grey-12, #fafafa)',
+};
+
+const heatBtn: React.CSSProperties = {
+  padding: '5px 10px',
+  borderRadius: 6,
+  border: '1px solid var(--puck-color-grey-09, #e5e7eb)',
+  background: 'transparent',
+  color: 'inherit',
+  fontSize: 11.5,
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+};
+
+const heatSelect: React.CSSProperties = {
+  padding: '5px 8px',
+  borderRadius: 6,
+  border: '1px solid var(--puck-color-grey-09, #e5e7eb)',
+  background: 'var(--puck-color-white, #fff)',
+  color: 'inherit',
+  fontSize: 11.5,
+};
 
 /**
  * 자유 배치 요소가 선택돼 있으면 그 요소의 필드를 직접 그린다.

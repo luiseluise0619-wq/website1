@@ -3,10 +3,16 @@
 import React from 'react';
 import { useEditorStore } from '@/store/editorStore';
 import { LOCALES, LOCALE_ORDER, t } from '@/lib/i18n';
+import { PAGE_TEMPLATES } from '@/data/templates';
 
 /* =============================================================================
- * SEO 패널 — 로케일별 메타데이터 편집
+ * 페이지 패널 — 이 페이지에 관한 설정을 한자리에
+ *   제목·주소 / 템플릿 / SEO 메타 / 노출 언어
  * 검색 결과 미리보기를 함께 보여줘 길이 감각을 잡을 수 있게 한다.
+ *
+ * 템플릿 적용은 상단 바에 있었다. 페이지 하나를 통째로 갈아끼우는 일이라
+ * 자주 쓰지 않는데, 늘 보이는 자리를 차지하면서 정작 '이 페이지 설정'인
+ * 제목·주소와는 떨어져 있었다.
  * ========================================================================== */
 
 export function SeoPanel() {
@@ -15,6 +21,7 @@ export function SeoPanel() {
   const updateSeoText = useEditorStore((s) => s.updateSeoText);
   const updateSeo = useEditorStore((s) => s.updateSeo);
   const updatePageMeta = useEditorStore((s) => s.updatePageMeta);
+  const applyTemplate = useEditorStore((s) => s.applyTemplate);
 
   if (!page) return null;
 
@@ -40,6 +47,38 @@ export function SeoPanel() {
 
       <Field label="페이지 제목">
         <input value={page.title} onChange={(e) => updatePageMeta(page.id, { title: e.target.value })} style={input} />
+      </Field>
+
+      <Field label="주소 (URL 경로)">
+        <input
+          value={page.path}
+          onChange={(e) => updatePageMeta(page.id, { path: e.target.value })}
+          style={{ ...input, fontFamily: 'monospace' }}
+        />
+      </Field>
+
+      {/* 현재 페이지를 다른 템플릿으로 갈아끼운다 — 내용이 통째로 교체되므로 확인을 받는다 */}
+      <Field label="템플릿 적용" hint="내용이 교체됩니다">
+        <select
+          value=""
+          onChange={(e) => {
+            const id = e.target.value;
+            e.target.value = '';
+            if (!id) return;
+            const tpl = PAGE_TEMPLATES.find((x) => x.id === id);
+            if (!tpl) return;
+            if (!window.confirm(`'${tpl.name}' 템플릿으로 교체합니다. 현재 페이지 내용은 사라집니다. 계속할까요?`)) return;
+            applyTemplate(page.id, id);
+          }}
+          style={input}
+        >
+          <option value="">고르면 바로 적용됩니다…</option>
+          {PAGE_TEMPLATES.map((tpl) => (
+            <option key={tpl.id} value={tpl.id}>
+              {tpl.name}
+            </option>
+          ))}
+        </select>
       </Field>
 
       <Field label={`SEO 제목 (${locale})`} hint={`${title.length}/60자`}>
@@ -83,9 +122,10 @@ export function SeoPanel() {
                 style={{
                   padding: '4px 9px',
                   borderRadius: 999,
-                  border: `1px solid ${on ? '#3b82f6' : 'var(--ks-edge)'}`,
-                  background: on ? 'rgba(59,130,246,.18)' : 'transparent',
-                  color: on ? '#e6ebf5' : 'var(--ks-muted)',
+                  border: `1px solid ${on ? 'var(--puck-color-azure-05, #3b82f6)' : 'var(--puck-color-grey-09, #e5e7eb)'}`,
+                  background: on ? 'var(--puck-color-azure-11, #eff6ff)' : 'transparent',
+                  color: on ? 'var(--puck-color-azure-04, #1d4ed8)' : 'var(--puck-color-grey-05, #6b7280)',
+                  fontWeight: on ? 700 : 400,
                   fontSize: 11,
                   cursor: 'pointer',
                 }}
@@ -121,13 +161,16 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   );
 }
 
+/* 이 패널은 Puck 의 흰 사이드바 안에서 그려진다. 에디터 껍데기(어두운 배경)의
+   --ks-* 색을 쓰면 흰 바탕에 흰 글씨가 되어 아무것도 안 보인다 —
+   실제로 노출 언어 칩은 국기만 보이고 글자는 사라져 있었다. */
 const input: React.CSSProperties = {
   width: '100%',
   padding: '7px 9px',
   borderRadius: 6,
-  border: '1px solid var(--ks-edge)',
-  background: 'var(--ks-panel2)',
-  color: 'inherit',
+  border: '1px solid var(--puck-color-grey-09, #d4d8e0)',
+  background: 'var(--puck-color-white, #fff)',
+  color: 'var(--puck-color-black, #111827)',
   fontSize: 12,
   fontFamily: 'inherit',
 };

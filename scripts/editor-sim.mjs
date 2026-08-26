@@ -139,7 +139,9 @@ await step('[＋ 추가] → 새 페이지', async () => {
   await page.waitForTimeout(600);
   await page.locator('form button[type=submit], form button:has-text("만들기")').last().click();
   await page.waitForTimeout(3000);
-  const path = await page.locator('input[title="URL 경로"]').inputValue();
+  /* 주소는 상단 바가 '보여 주기만' 한다(고치는 곳은 우측 [페이지] 탭) —
+     값은 data-ks-path 로 읽는다. */
+  const path = await page.locator('[data-ks-path]').getAttribute('data-ks-path');
   if (!path || path === '/') throw new Error(`경로가 만들어지지 않음: "${path}"`);
   return `경로 ${path} · 블록 ${await blockCount()}개`;
 });
@@ -322,7 +324,7 @@ await step('미리보기를 열어 휴대폰 폭까지 본다', async () => {
 await step('발행하고 공개 화면에서 확인', async () => {
   await page.locator('button:has-text("발행")').click();
   await page.waitForTimeout(3500);
-  const path = await page.locator('input[title="URL 경로"]').inputValue();
+  const path = await page.locator('[data-ks-path]').getAttribute('data-ks-path');
 
   const visitor = await browser.newPage();
   const res = await visitor.goto(BASE + path, { waitUntil: 'networkidle' });
