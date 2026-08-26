@@ -287,6 +287,11 @@ export function ContainerBlock(props: Block<ContainerProps> & { zoneId?: string 
       data-element-name={props.name}
       /* 휴대폰에서 여러 열을 한 열로 접기 위해 CSS 가 읽는 표시 (globals.css) */
       data-layout={layout}
+      /* 조작 레이어·레이어 목록이 이 요소를 지목하는 열쇠 (BlockShell 과 같은 계약).
+         컨테이너는 자식이 화면을 다 덮어서 캔버스 클릭으로는 절대 잡히지 않는다 —
+         목록에서 고를 수 있어야 카드 배경·간격을 바꿀 수 있다. */
+      data-puck-id={props.id}
+      data-free={props.free ? 'true' : undefined}
     >
       {/* DropZone 이 Puck 의 중첩 편집 지점이다 — 관리자가 여기에 블록을 끌어다 놓는다 */}
       <DropZone
@@ -331,6 +336,10 @@ export function SectionBlock(props: Block<ContainerProps>) {
       data-element-type="Section"
       data-element-name={props.name}
       data-section="true"
+      /* 조작 레이어와 레이어 목록이 이 요소를 지목하는 열쇠.
+         이게 없으면 섹션은 어디에서도 고를 수 없다 — 캔버스에서 누르면
+         언제나 안쪽 자식이 잡히고, 목록에도 나타나지 않는다. */
+      data-puck-id={props.id}
     >
       <div style={{ maxWidth, margin: '0 auto', width: '100%', height: '100%', position: 'relative' }}>
         <DropZone zone="content" />
@@ -434,6 +443,8 @@ export function FreeCanvasBlock(props: Block<{ height: number; snap?: number }>)
       data-element-id={elementId}
       data-element-type="FreeCanvas"
       data-free-canvas="true"
+      data-element-name={props.name}
+      data-puck-id={props.id}
     >
       {/* 자식들은 각자 position:absolute + left/top 으로 자리를 잡는다.
           FreeCtx 가 "여기서는 placement 좌표를 쓰라"고 알린다. */}

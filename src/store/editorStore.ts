@@ -86,6 +86,24 @@ export interface EditorState {
   newPage: { preset: NavNode | null } | null;
   /** 섹션 추가 요청 횟수 — 캔버스 조작 레이어가 늘어난 것을 보고 만든다 */
   addSectionRequest: number;
+
+  /**
+   * 좌측 레이어 목록에서 "이걸 골라 달라"는 요청.
+   *
+   * 목록은 Puck 트리 바깥(좌측 패널)에 있어 usePuck 을 쓸 수 없다 —
+   * 쓰면 'usePuck must be used inside <Puck>' 로 에디터가 통째로 죽는다.
+   * 그래서 바깥은 신호만 남기고, Puck 안의 조작 레이어가 집어 가서
+   * 실제 선택(자유 배치인지 흐름인지 판정 + 인스펙터 갱신)을 수행한다.
+   * 같은 요소를 다시 골라도 반응해야 하므로 nonce 를 함께 센다.
+   */
+  selectRequest: { id: string; nonce: number } | null;
+
+  /**
+   * 지금 실제로 고른 요소 (자유 배치·흐름 배치 모두).
+   * pickedElementId 는 자유 배치만 담는다 — 좌측 목록이 '무엇이 선택돼
+   * 있는지' 표시하려면 흐름 배치까지 아는 값이 하나 필요하다.
+   */
+  currentElementId: string | null;
 }
 
 export interface EditorActions {
@@ -122,6 +140,8 @@ export interface EditorActions {
   setRightTab: (tab: RightTab) => void;
   setNewPage: (v: { preset: NavNode | null } | null) => void;
   requestAddSection: () => void;
+  requestSelect: (id: string) => void;
+  setCurrentElement: (id: string | null) => void;
   setSaving: (v: boolean) => void;
   markSaved: (saved?: Array<{ id: string; revision: number }>) => void;
   setPickedElement: (id: string | null) => void;
@@ -173,6 +193,8 @@ export const useEditorStore = create<EditorStore>((set, get) => {
     rightTab: 'style',
     newPage: null,
     addSectionRequest: 0,
+    selectRequest: null,
+    currentElementId: null,
 
     loadPages: (pages) =>
       set({
@@ -283,6 +305,9 @@ export const useEditorStore = create<EditorStore>((set, get) => {
     setRightTab: (rightTab) => set({ rightTab }),
     setNewPage: (newPage) => set({ newPage }),
     requestAddSection: () => set((s) => ({ addSectionRequest: s.addSectionRequest + 1 })),
+    requestSelect: (id) =>
+      set((s) => ({ selectRequest: { id, nonce: (s.selectRequest?.nonce ?? 0) + 1 } })),
+    setCurrentElement: (currentElementId) => set({ currentElementId }),
 
     setEditingLocale: (editingLocale) => set({ editingLocale }),
     toggleTranslationBadges: () => set((s) => ({ showTranslationBadges: !s.showTranslationBadges })),

@@ -11,6 +11,7 @@ import { PageTree } from './PageTree';
 import { EditorToolbar } from './EditorToolbar';
 import { RightPanel } from './RightPanel';
 import { NewPageDialog } from './NewPageDialog';
+import { LayerTree } from './LayerTree';
 import { FreeTransformLayer } from './FreeTransformLayer';
 import { HeatmapOverlay } from '@/components/analytics/HeatmapOverlay';
 import type { Data } from '@puckeditor/core';
@@ -129,6 +130,9 @@ export function EditorShell({
      Puck 자체 좌측 패널(블록 목록)과 합치면 화면 폭을 크게 잡아먹어
      캔버스가 심하게 축소된다(1600px 화면에서 캔버스가 600px 이하). */
   const [treeOpen, setTreeOpen] = React.useState(true);
+  /* 좌측 패널이 두 가지를 보여 준다: 어떤 페이지를 볼지(페이지),
+     그 페이지 안에서 무엇을 고를지(레이어). 둘 다 '고르기'라 한 자리에 둔다. */
+  const [leftTab, setLeftTab] = React.useState<'pages' | 'layers'>('pages');
   /* 블록 목록까지 접어 캔버스를 최대로 넓히는 모드 */
   const [wide, setWide] = React.useState(false);
   const canvasRef = React.useRef<HTMLDivElement>(null);
@@ -277,7 +281,40 @@ export function EditorShell({
               {treeOpen ? '⟨' : '⟩'}
             </button>
           </div>
-          {treeOpen ? <PageTree onError={setSaveError} /> : null}
+          {treeOpen ? (
+            <>
+              <div style={leftTabBar}>
+                {(
+                  [
+                    ['pages', '페이지'],
+                    ['layers', '레이어'],
+                  ] as const
+                ).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setLeftTab(key)}
+                    style={{
+                      ...leftTabBtn,
+                      color: leftTab === key ? '#e6ebf5' : '#8b95a7',
+                      borderBottomColor: leftTab === key ? '#3b82f6' : 'transparent',
+                      fontWeight: leftTab === key ? 700 : 500,
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {/* 두 목록 다 마운트를 유지한다 — 탭을 옮길 때마다 스크롤 위치와
+                  접어 둔 상태가 날아가면 깊은 페이지에서 매번 다시 찾아야 한다. */}
+              <div style={{ display: leftTab === 'pages' ? 'contents' : 'none' }}>
+                <PageTree onError={setSaveError} />
+              </div>
+              <div style={{ display: leftTab === 'layers' ? 'contents' : 'none' }}>
+                <LayerTree />
+              </div>
+            </>
+          ) : null}
         </aside>
 
         {/* ============ 중앙: 툴바 + Puck 캔버스 ============ */}
@@ -412,6 +449,23 @@ const leftPanel: React.CSSProperties = {
   background: 'var(--ks-panel)',
   display: 'flex',
   flexDirection: 'column',
+};
+
+const leftTabBar: React.CSSProperties = {
+  display: 'flex',
+  borderBottom: '1px solid var(--ks-edge)',
+  flexShrink: 0,
+};
+
+const leftTabBtn: React.CSSProperties = {
+  flex: 1,
+  padding: '8px 0',
+  background: 'none',
+  border: 0,
+  borderBottom: '2px solid transparent',
+  color: '#8b95a7',
+  fontSize: 12,
+  cursor: 'pointer',
 };
 
 const panelHeader: React.CSSProperties = {

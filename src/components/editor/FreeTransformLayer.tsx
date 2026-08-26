@@ -135,6 +135,13 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
    */
   const [isFree, setIsFree] = React.useState(true);
 
+  /* 좌측 레이어 목록이 '무엇이 선택돼 있는지' 표시할 수 있게 알려 준다 */
+  const setCurrentElement = useEditorStore((s) => s.setCurrentElement);
+
+  React.useEffect(() => {
+    setCurrentElement(selected?.id ?? null);
+  }, [selected?.id, setCurrentElement]);
+
   /** iframe 안의 위치들을 화면 좌표로 환산 */
   const measure = React.useCallback(() => {
     const geo = readGeometry(containerRef.current);
@@ -537,6 +544,27 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
     };
     setTimeout(reveal, 80);
   };
+
+  /* 좌측 레이어 목록의 선택 요청을 실제 선택으로 옮긴다.
+     목록은 Puck 트리 바깥에 있어 usePuck 을 쓸 수 없다(쓰면 에디터가 통째로
+     오류 화면이 된다). 그래서 바깥은 신호만 남기고, Puck 안인 여기서
+     '자유 배치인지 흐름인지' 판정해 선택을 맞춰 준다 — 한쪽만 갱신하면
+     인스펙터는 A 를 보여 주는데 크기 손잡이는 B 에 붙는다. */
+  const selectRequest = useEditorStore((s) => s.selectRequest);
+  const handledSelect = React.useRef(selectRequest?.nonce ?? 0);
+  React.useEffect(() => {
+    if (!selectRequest || selectRequest.nonce === handledSelect.current) return;
+    handledSelect.current = selectRequest.nonce;
+
+    const doc = readGeometry(containerRef.current)?.doc;
+    const node = doc?.querySelector<HTMLElement>(`[data-puck-id="${CSS.escape(selectRequest.id)}"]`);
+    setPickedId(node?.dataset.free === 'true' ? selectRequest.id : null);
+
+    const selector = getSelectorForId(selectRequest.id);
+    if (selector) {
+      dispatch({ type: 'setUi', ui: { itemSelector: { index: selector.index, zone: selector.zone } } });
+    }
+  }, [selectRequest, containerRef, dispatch, getSelectorForId, setPickedId]);
 
   /* 상단 [＋ 추가 → 섹션 추가] 도 같은 일을 한다.
      섹션을 만드는 코드는 Puck 컨텍스트가 있는 이 안에서만 쓸 수 있으므로,
