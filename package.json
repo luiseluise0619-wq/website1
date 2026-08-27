@@ -15,7 +15,8 @@
     "canvas-check": "node scripts/canvas-stability.mjs",
     "export-check": "node scripts/export-check.mjs",
     "sim": "node scripts/editor-sim.mjs",
-    "paper-check": "node scripts/paper-check.mjs"
+    "paper-check": "node scripts/paper-check.mjs",
+    "editor-check": "node scripts/editor-check.mjs"
   },
   "dependencies": {
     "@puckeditor/core": "^0.23.0",

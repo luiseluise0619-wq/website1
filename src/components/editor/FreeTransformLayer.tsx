@@ -556,15 +556,33 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
     return () => document.removeEventListener('pointermove', track);
   }, []);
 
+  /* 이미 한 번 본 요소들 — 여기 없는 것만 '방금 들어온 것'이다.
+     이 구분이 없으면, 좌표가 없는 채로 저장돼 있던 요소가 페이지를 열기만
+     해도 마우스가 있던 자리로 끌려간다. 열어 본 것만으로 남의 페이지가
+     바뀌는 셈이라, 이 목록을 먼저 채우고 시작한다.
+     페이지를 갈아타면 Puck 이 통째로 다시 마운트되므로(<Puck key={pageId}>)
+     이 목록도 저절로 비워진다 — 따로 지울 필요가 없다. */
+  const seenIds = React.useRef<Set<string> | null>(null);
+
   const placeNewcomers = React.useCallback(() => {
     const geo = readGeometry(containerRef.current);
     if (!geo) return;
 
-    for (const node of Array.from(
-      geo.doc.querySelectorAll<HTMLElement>('[data-free="true"][data-puck-id]'),
-    )) {
+    const nodes = Array.from(geo.doc.querySelectorAll<HTMLElement>('[data-free="true"][data-puck-id]'));
+
+    /* 첫 훑기는 '등록'만 한다 — 지금 있는 것은 전부 원래 있던 것이다 */
+    if (!seenIds.current) {
+      seenIds.current = new Set(nodes.map((n) => n.dataset.puckId).filter(Boolean) as string[]);
+      return;
+    }
+
+    for (const node of nodes) {
       const id = node.dataset.puckId;
       if (!id) continue;
+      const isNew = !seenIds.current.has(id);
+      seenIds.current.add(id);
+      if (!isNew) continue;
+
       const item = getItemById(id);
       if (!item) continue;
       if ((item.props as { placement?: FreePlacement }).placement) continue;
@@ -586,7 +604,10 @@ export function FreeTransformLayer({ containerRef }: { containerRef: React.RefOb
           y = Math.max(0, Math.round(iy - canvasRect.top));
         }
       }
-      commitFor(id, { x, y }, { free: true });
+      /* 되돌리기 기록에 남기지 않는다. 남기면 '끌어다 놓기'가 두 걸음이 되어
+         Ctrl+Z 를 눌러도 블록이 사라지지 않고 좌표만 0,0 으로 돌아간다 —
+         놓은 것을 무르려면 두 번 눌러야 했다. 자리 지정은 삽입의 일부다. */
+      commitFor(id, { x, y }, { free: true, recordHistory: false });
     }
   }, [containerRef, getItemById, commitFor]);
 

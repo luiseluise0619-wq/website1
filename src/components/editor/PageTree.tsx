@@ -246,9 +246,12 @@ function CustomPages({
             커스텀 페이지
           </div>
           {custom.map((p) => (
+            /* 줄 전체가 '이 페이지를 연다' 는 버튼이다. 예전에는 클릭만 받는
+               div 라서 키보드로는 커스텀 페이지를 아예 열 수 없었다 —
+               메뉴에 매인 페이지들은 버튼인데 여기만 빠져 있었다.
+               (안쪽 복제·삭제는 각자 버튼이라 중첩을 피해 형제로 둔다) */
             <div
               key={p.id}
-              onClick={() => onSelect(p.id)}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -256,12 +259,32 @@ function CustomPages({
                 padding: '5px 8px',
                 borderRadius: 6,
                 fontSize: 12,
-                cursor: 'pointer',
                 background: p.id === activePageId ? 'rgba(59,130,246,.22)' : 'transparent',
               }}
             >
-              <span>{p.title}</span>
-              <span style={{ marginLeft: 'auto', display: 'flex', gap: 4, alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={() => onSelect(p.id)}
+                aria-current={p.id === activePageId ? 'page' : undefined}
+                title={`${p.title} — ${p.path}`}
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  textAlign: 'left',
+                  background: 'none',
+                  border: 0,
+                  padding: 0,
+                  color: 'inherit',
+                  font: 'inherit',
+                  cursor: 'pointer',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {p.title}
+              </button>
+              <span style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
                 <StatusDot status={p.status} />
                 <button
                   type="button"

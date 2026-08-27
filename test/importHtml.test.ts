@@ -162,6 +162,75 @@ describe('appendImported — 지금 문서 뒤에 붙이기', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
+  /* -------------------------------------------------------------------------
+   * 종이 페이지에 가져오기
+   * -------------------------------------------------------------------------
+   * 종이는 '맨 위가 자유 캔버스 하나뿐'이라는 사실로 정의된다. 가져오기가
+   * 섹션을 하나 붙이면 그 순간 그 사실이 깨져 페이지가 종이이기를 그만둔다 —
+   * 아래 버튼이 [＋ 섹션 추가] 로 돌아가고, 없앤 칸 개념이 되살아난다.
+   * ---------------------------------------------------------------------- */
+  const paper: PuckPageData = {
+    root: { props: {} },
+    content: [{ type: 'FreeCanvas', props: { id: 'paper1', height: 900 } }],
+    zones: {
+      'paper1:layers': [
+        { type: 'Text', props: { id: 'p1', html: { ko: '원래 있던 글' }, placement: { x: 120, y: 120, height: 80 } } },
+      ],
+    },
+  };
+
+  it('종이 페이지에는 섹션을 만들지 않는다', () => {
+    const next = appendImported(paper, run('<h1>가져온 제목</h1>').data);
+    expect(next.content).toHaveLength(1);
+    expect(next.content[0].type).toBe('FreeCanvas');
+    expect(JSON.stringify(next)).not.toContain('"Section"');
+  });
+
+  it('가져온 것을 종이 위에, 원래 있던 것 아래에 놓는다', () => {
+    const next = appendImported(paper, run('<h1>가져온 제목</h1>').data);
+    const layers = next.zones!['paper1:layers'];
+    expect(layers.length).toBeGreaterThan(1);
+    // 원래 있던 글은 그대로
+    expect(layers[0].props.id).toBe('p1');
+    // 새로 온 것은 좌표를 갖고, 원래 것의 아래끝(120+80)보다 아래에 있다
+    const placement = layers[1].props.placement as { x: number; y: number };
+    expect(placement.x).toBeGreaterThan(0);
+    expect(placement.y).toBeGreaterThan(200);
+  });
+
+  it('가져온 내용이 종이 밖으로 잘리지 않는다 (모자라면 늘린다)', () => {
+    const next = appendImported(paper, run('<h1>가져온 제목</h1>').data);
+    const layers = next.zones!['paper1:layers'];
+    const lowest = Math.max(
+      ...layers.map((b) => {
+        const pl = b.props.placement as { y?: number } | undefined;
+        return pl?.y ?? 0;
+      }),
+    );
+    expect(Number(next.content[0].props.height)).toBeGreaterThanOrEqual(lowest);
+  });
+
+  /* 이미 꽉 찬 종이에 더 넣으면 그때는 실제로 늘어나야 한다 */
+  it('종이가 이미 꽉 찼으면 그만큼 늘어난다', () => {
+    const full: PuckPageData = {
+      ...paper,
+      content: [{ type: 'FreeCanvas', props: { id: 'paper1', height: 400 } }],
+      zones: {
+        'paper1:layers': [
+          { type: 'Text', props: { id: 'p1', html: { ko: '바닥까지' }, placement: { x: 80, y: 200, height: 180 } } },
+        ],
+      },
+    };
+    const next = appendImported(full, run('<h1>가져온 제목</h1>').data);
+    expect(Number(next.content[0].props.height)).toBeGreaterThan(400);
+  });
+
+  it('종이가 아닌 페이지는 예전처럼 섹션으로 붙는다', () => {
+    const next = appendImported(current, run('<h1>새 제목</h1>').data);
+    expect(next.content).toHaveLength(2);
+    expect(next.content[1].type).toBe('Section');
+  });
+
   it('id 를 바꾸면 zone 키도 함께 따라간다 (빈 상자가 되지 않게)', () => {
     const next = appendImported(current, run('<h1>새 제목</h1>').data);
     const added = next.content[1];

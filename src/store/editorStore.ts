@@ -305,8 +305,28 @@ export const useEditorStore = create<EditorStore>((set, get) => {
         };
       }),
 
-    commitContent: (pageId, content) =>
-      patchPage(pageId, (p) => (p.content === content ? p : { ...p, content, revision: p.revision + 1 })),
+    /**
+     * Puck onChange → 페이지 문서에 커밋.
+     *
+     * Puck 은 마운트 직후에도 onChange 를 한 번 부른다 — defaultProps 를 채우고
+     * id 를 정규화한 결과를 돌려주는 것이라, 사람이 고친 것이 아니다. 그런데도
+     * 새 객체이므로 참조 비교만으로는 걸러지지 않아, 에디터를 열기만 해도 늘
+     * '저장 *' 이 떴다. 그러면 탭을 닫을 때마다 "저장하지 않은 편집이 있습니다"
+     * 경고가 뜨고, HTML 내보내기도 매번 확인을 묻는다 — 진짜 편집과 구별이
+     * 안 되니 경고가 경고 노릇을 못 한다.
+     *
+     * 아직 이 페이지를 고치지 않은 동안에만 값으로 비교한다. 한 번이라도
+     * 고쳤으면 어차피 '편집됨'이므로 비교를 건너뛴다(타이핑마다 직렬화하지
+     * 않도록).
+     */
+    commitContent: (pageId, content) => {
+      const state = get();
+      if (!state.dirtyPageIds.includes(pageId)) {
+        const current = state.pages.find((p) => p.id === pageId)?.content;
+        if (current && JSON.stringify(current) === JSON.stringify(content)) return;
+      }
+      patchPage(pageId, (p) => (p.content === content ? p : { ...p, content, revision: p.revision + 1 }));
+    },
 
     setRightTab: (rightTab) => set({ rightTab }),
     setNewPage: (newPage) => set({ newPage }),

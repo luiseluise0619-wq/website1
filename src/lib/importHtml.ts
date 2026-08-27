@@ -350,8 +350,36 @@ export function htmlToPage(html: string, options: ImportOptions = {}): ImportRes
 }
 
 /**
+ * 이 문서가 '종이 한 장'인가 — 맨 위가 자유 캔버스 하나뿐.
+ * 종이에는 섹션이라는 칸이 없으므로 가져오기도 칸을 만들면 안 된다.
+ */
+function paperOf(data: PuckPageData): string | null {
+  if (data.content?.length !== 1) return null;
+  const only = data.content[0];
+  return only.type === 'FreeCanvas' ? String(only.props.id) : null;
+}
+
+/** 종이 위에 이미 놓인 것들의 아래끝 — 새로 오는 것은 그 밑에 놓는다 */
+function bottomOfPaper(layers: PuckBlock[] | undefined): number {
+  let bottom = 0;
+  for (const block of layers ?? []) {
+    const placement = block.props.placement as { y?: number; height?: number } | undefined;
+    if (!placement) continue;
+    /* 높이를 안 정한 것(글처럼 내용이 정하는 것)은 알 수 없다 —
+       넉넉히 잡아 겹치지 않게 한다. 정확한 자리는 끌어서 맞추면 된다. */
+    bottom = Math.max(bottom, (placement.y ?? 0) + (placement.height ?? 240));
+  }
+  return bottom;
+}
+
+/**
  * 가져온 내용을 지금 문서 뒤에 붙인다.
  * id 가 겹치면 앞의 블록이 사라지므로, 붙이기 전에 새 id 를 부여한다.
+ *
+ * 종이 페이지면 섹션을 만들지 않고 종이 위에 얹는다. 예전에는 종이든
+ * 아니든 섹션을 하나 붙였고, 그 순간 페이지는 '자유 캔버스 하나'가 아니게
+ * 되어 종이이기를 그만뒀다 — 아래 버튼이 [＋ 섹션 추가] 로 돌아가고,
+ * 없앴던 칸 개념이 가져오기 한 번으로 되살아났다.
  */
 export function appendImported(current: PuckPageData, imported: PuckPageData): PuckPageData {
   const used = new Set<string>();
@@ -386,6 +414,46 @@ export function appendImported(current: PuckPageData, imported: PuckPageData): P
     const [owner, zone] = key.split(':');
     const nextKey = `${rename.get(owner) ?? owner}:${zone}`;
     zones[nextKey] = remapBlocks(list);
+  }
+
+  const paperId = paperOf(current);
+  if (paperId) {
+    /* 가져온 것은 '섹션 하나 → 그 안에 컨테이너 하나' 모양이다.
+       종이에서는 섹션 껍데기를 벗기고, 안의 컨테이너를 종이 위에 놓는다. */
+    const importedSection = content[0];
+    const sectionZone = importedSection ? `${String(importedSection.props.id)}:content` : null;
+    const inner = sectionZone ? zones[sectionZone] : undefined;
+
+    if (inner?.length) {
+      const layersKey = `${paperId}:layers`;
+      const y = bottomOfPaper(zones[layersKey]) + 60;
+
+      const placed = inner.map((block, i) => ({
+        ...block,
+        props: {
+          ...block.props,
+          /* 세로로 나란히 — 한 자리에 겹쳐 놓으면 무엇이 왔는지 볼 수 없다 */
+          placement: { x: 80, y: y + i * 320, width: 1120 },
+        },
+      }));
+
+      delete zones[sectionZone as string];
+      zones[layersKey] = [...(zones[layersKey] ?? []), ...placed];
+
+      /* 종이는 내용에 맞춰 저절로 늘어나지만, 최소 길이도 함께 올려 둔다 —
+         가져온 뒤 아래가 잘려 보이지 않게. */
+      const paperBlock = current.content[0];
+      const grown = Math.max(
+        Number(paperBlock.props.height) || 640,
+        y + placed.length * 320 + 120,
+      );
+
+      return {
+        root: current.root,
+        content: [{ ...paperBlock, props: { ...paperBlock.props, height: grown } }],
+        zones,
+      };
+    }
   }
 
   return {
